@@ -1,23 +1,8 @@
-import React from "react";
-import "./App.css";
-import BlocksPanel from "./editor/blocks/BlocksPanel";
-import Canvas from "./editor/canvas/Canvas";
-import Inspector from "./editor/inspector/Inspector";
+import './App.css'
+import FormBuilder from './editor/blocks/FormBuilder'
 
 function App() {
-  return (
-    <div>
-      <aside>
-        <BlocksPanel />
-      </aside>
-      <main style={{ flex: 1, padding: 12, overflow: "auto" }}>
-        <Canvas />
-      </main>
-      <aside>
-        <Inspector />
-      </aside>
-    </div>
-  );
+  return <FormBuilder />
 }
 
-export default App;
+export default App
