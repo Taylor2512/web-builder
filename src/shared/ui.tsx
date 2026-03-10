@@ -360,3 +360,46 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
     </label>
   )
 }
+
+export function ShellIconButton({
+  active = false,
+  size = 'sm',
+  style,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; size?: 'sm' | 'md' }) {
+  return (
+    <button
+      {...props}
+      style={{
+        border: 'none',
+        background: active ? 'var(--surface-hover)' : 'transparent',
+        color: active ? 'var(--text)' : 'var(--muted)',
+        cursor: props.disabled ? 'not-allowed' : 'pointer',
+        fontSize: size === 'md' ? 14 : 13,
+        padding: size === 'md' ? '3px 8px' : '2px 6px',
+        borderRadius: 6,
+        lineHeight: 1,
+        opacity: props.disabled ? 0.5 : 1,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+export function ShellPanelHeader({
+  title,
+  children,
+}: {
+  title: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className='shell-panel-header'>
+      <span className='shell-panel-title'>{title}</span>
+      {children}
+    </div>
+  )
+}

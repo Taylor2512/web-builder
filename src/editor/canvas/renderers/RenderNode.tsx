@@ -6,6 +6,7 @@ import { useEditorStore } from "../../state/useEditorStore";
 import { containerTypes, type Node } from "../../types/schema";
 import { TYPE_COLOR } from "../styles/nodeColors";
 import { mergeResponsiveStyle } from "./mergeResponsiveStyle";
+import { getRenderableChildIds } from "./nodeVisibility";
 import { renderNodeContent } from "./nodeRenderers";
 import { NodeResizer } from "../overlays/NodeResizer";
 import { NodeToolbar } from "../overlays/NodeToolbar";
@@ -17,6 +18,7 @@ export type DragMeta = {
   source: "palette" | "canvas";
 };
 
+
 export function RenderNode({
   id,
   hoveredDropId,
@@ -27,7 +29,6 @@ export function RenderNode({
   dragMeta: DragMeta | null;
 }) {
   const node = useEditorStore((state) => state.nodesById[id]);
-  const nodesById = useEditorStore((state) => state.nodesById);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
   const mode = useEditorStore((state) => state.mode);
@@ -46,7 +47,7 @@ export function RenderNode({
     disabled: !canDropInside || mode === "preview",
   });
 
-  if (!node || node.isHidden) return null;
+  if (!node) return null;
 
   const computedStyle = mergeResponsiveStyle(node, activeBreakpoint);
   const isSelected = selectedNodeId === id;
@@ -55,7 +56,7 @@ export function RenderNode({
   const showInsertHint = isDropTarget && mode === "edit" && dragMeta?.source === "palette";
   const showMoveHint = hoveredDropId === node.id && mode === "edit" && dragMeta?.source === "canvas";
   const isContainer = containerTypes.includes(node.type);
-  const visibleChildIds = node.children.filter((childId) => !nodesById[childId]?.isHidden);
+  const childIds = getRenderableChildIds(node);
 
   const content = renderNodeContent(node, {
     mode,
@@ -92,6 +93,7 @@ export function RenderNode({
         : ((computedStyle.background as string | undefined) ??
           (isContainer ? "rgba(0,0,0,0.015)" : undefined)),
     minHeight: isContainer && !node.children.length && mode === "edit" ? 60 : undefined,
+    display: node.isHidden ? "none" : (computedStyle.display as string | undefined),
   };
 
   return (
@@ -148,8 +150,8 @@ export function RenderNode({
 
         {content}
 
-        <SortableContext items={visibleChildIds} strategy={rectSortingStrategy}>
-          {visibleChildIds.map((childId) => (
+        <SortableContext items={childIds} strategy={rectSortingStrategy}>
+          {childIds.map((childId) => (
               <RenderNode key={childId} id={childId} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
             ))}
         </SortableContext>

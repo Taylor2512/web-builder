@@ -22,7 +22,6 @@ import {
   containerTypes,
   sanitizeUrl,
   type PageDef,
-  type Breakpoint,
   type FormField,
   type Node,
   type NodeType,
@@ -30,11 +29,13 @@ import {
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import { mergeResponsiveStyle } from "./renderers/mergeResponsiveStyle";
 import PreviewRouter from "../preview/PreviewRouter";
 import {
   resolveBinding,
   type BindingError,
 } from "../bindings/resolveBinding";
+import { mapCollectionForOptions, resolveCollection } from "../data/engine";
 
 type DragMeta = {
   id: string;
@@ -45,15 +46,6 @@ type DragMeta = {
 type BindingIssue = BindingError & { nodeId: string; prop: string };
 type BindingContext = Record<string, unknown>;
 
-const bpOrder: Breakpoint[] = ["desktop", "tablet", "mobile"];
-
-const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
-  const style: Record<string, string | number | undefined> = {};
-  const maxIndex = bpOrder.indexOf(activeBreakpoint);
-  for (let i = 0; i <= maxIndex; i += 1)
-    Object.assign(style, node.styleByBreakpoint[bpOrder[i]]);
-  return style;
-};
 
 const validateField = (
   field: FormField,
@@ -398,6 +390,7 @@ function RenderNode({
   const node = useEditorStore((s) => s.nodesById[id]);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectNode = useEditorStore((s) => s.selectNode);
+  const selectFlow = useEditorStore((s) => s.selectFlow);
   const mode = useEditorStore((s) => s.mode);
   const updateProps = useEditorStore((s) => s.updateProps);
   const [isEditingText, setIsEditingText] = useState(false);
@@ -418,7 +411,7 @@ function RenderNode({
 
   if (!node) return null;
 
-  const computedStyle = mergeStyle(node, activeBreakpoint);
+  const computedStyle = mergeResponsiveStyle(node, activeBreakpoint);
   const isSelected = selectedNodeId === id;
   const dropZoneId = `drop-${node.id}`;
   const isDropTarget = hoveredDropId === dropZoneId;
@@ -431,6 +424,19 @@ function RenderNode({
   const isContainer = containerTypes.includes(node.type);
   const nodeBindingContext = bindingContext;
 
+  const runEventFlow = (eventName: "click" | "hover" | "load") => {
+    if (mode !== "preview") return;
+    if (node.type !== "searchSelect" && node.type !== "dataTable" && node.type !== "repeater") return;
+    const flowId =
+      eventName === "click"
+        ? node.props.events?.clickFlowId
+        : eventName === "hover"
+          ? node.props.events?.hoverFlowId
+          : node.props.events?.loadFlowId;
+    if (!flowId) return;
+    selectFlow(flowId);
+  };
+
   const resolveNodeBinding = (prop: string, rawValue: unknown) => {
     const result = resolveBinding(rawValue, nodeBindingContext);
     return {
@@ -440,6 +446,11 @@ function RenderNode({
   };
 
   const nodeIssues: BindingIssue[] = [];
+
+  useEffect(() => {
+    runEventFlow("load");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, mode]);
 
   const resolvePagePath = (pageId?: string, fallbackPath?: string) => {
     if (pageId) {
@@ -605,16 +616,13 @@ function RenderNode({
   if (node.type === "searchSelect") {
     const sourcePath = resolveNodeBinding("dataPath", node.props.dataPath ?? "");
     nodeIssues.push(...sourcePath.issues);
-    const dynamicOptions = Array.isArray(sourcePath.value)
-      ? sourcePath.value
-      : [];
+    const dynamicOptions = resolveCollection(sourcePath.value, "");
     const options =
       mode === "preview" && node.props.source === "dataSource"
-        ? dynamicOptions.map((option, index) => ({
-            id: `bound-${index}`,
-            label: String((option as Record<string, unknown>)?.label ?? option),
-            value: String((option as Record<string, unknown>)?.value ?? option),
-          }))
+        ? mapCollectionForOptions(dynamicOptions, {
+            labelPath: node.props.labelPath,
+            valuePath: node.props.valuePath,
+          })
         : node.props.options;
     content = (
       <label style={{ display: "grid", gap: 5, fontSize: 13 }}>
@@ -640,7 +648,7 @@ function RenderNode({
     nodeIssues.push(...rowsBinding.issues);
     const rows =
       mode === "preview" && node.props.source === "dataSource" && Array.isArray(rowsBinding.value)
-        ? rowsBinding.value
+        ? resolveCollection(rowsBinding.value)
         : node.props.rows;
 
     content = (
@@ -832,8 +840,10 @@ function RenderNode({
     >
       <div
         ref={setDroppableRef}
+        onMouseEnter={() => runEventFlow("hover")}
         onClick={(event) => {
           event.stopPropagation();
+          runEventFlow("click");
           if (mode === "edit") selectNode(id);
         }}
         {...(mode === "edit" ? attributes : {})}

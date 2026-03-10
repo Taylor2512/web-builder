@@ -3,7 +3,7 @@ import BlocksPanel from './BlocksPanel'
 import Canvas from '../canvas/Canvas'
 import Inspector from '../inspector/Inspector'
 import { useEditorStore } from '../state/useEditorStore'
-import { GhostButton, PrimaryButton } from '../../shared/ui'
+import { GhostButton, PrimaryButton, ShellIconButton, ShellPanelHeader } from '../../shared/ui'
 import { loadBuilderConfig } from '../config/loadBuilderConfig'
 import FlowStudio from '../flows/FlowStudio'
 import PagesPanel from '../panels/PagesPanel'
@@ -38,7 +38,6 @@ export default function FormBuilder() {
   const rootId = useEditorStore((s) => s.rootId)
   const ui = useEditorStore((s) => s.ui)
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel)
-  const togglePanels = useEditorStore((s) => s.togglePanels)
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode)
   const setFocusMode = useEditorStore((s) => s.setFocusMode)
   const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
@@ -55,6 +54,8 @@ export default function FormBuilder() {
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const [editingName, setEditingName] = useState(false)
+  const focusRestoreRef = useRef({ activeLeftPanel: ui.activeLeftPanel, rightPanelOpen: ui.rightPanelOpen })
+  const dragRef = useRef<null | { side: 'left' | 'right'; startX: number; startWidth: number }>(null)
 
   useEffect(() => {
     loadBuilderConfig().then((config) => {
@@ -108,7 +109,15 @@ export default function FormBuilder() {
         return
       }
 
-      if (!editable && event.key.toLowerCase() === 'f') {
+      if (!editable && event.key === 'Escape' && ui.focusMode) {
+        event.preventDefault()
+        setFocusMode(false)
+        setActiveLeftPanel(focusRestoreRef.current.activeLeftPanel)
+        if (focusRestoreRef.current.rightPanelOpen !== ui.rightPanelOpen) toggleRightPanel()
+        return
+      }
+
+      if (!editable && event.key.toLowerCase() === 'f' && event.shiftKey) {
         event.preventDefault()
         toggleFocusMode()
         return
@@ -124,14 +133,46 @@ export default function FormBuilder() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, togglePanels])
+  }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, setFocusMode, setActiveLeftPanel, toggleRightPanel, ui])
+
+  useEffect(() => {
+    if (ui.focusMode) {
+      focusRestoreRef.current = { activeLeftPanel: ui.activeLeftPanel, rightPanelOpen: ui.rightPanelOpen }
+      if (ui.activeLeftPanel !== null) setActiveLeftPanel(null)
+      if (ui.rightPanelOpen) toggleRightPanel()
+      return
+    }
+    const { activeLeftPanel: leftPanel, rightPanelOpen } = focusRestoreRef.current
+    if (leftPanel !== ui.activeLeftPanel) setActiveLeftPanel(leftPanel)
+    if (rightPanelOpen !== ui.rightPanelOpen) toggleRightPanel()
+  }, [setActiveLeftPanel, toggleRightPanel, ui.activeLeftPanel, ui.focusMode, ui.rightPanelOpen])
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag) return
+      const delta = event.clientX - drag.startX
+      if (drag.side === 'left') {
+        setLeftPanelWidth(drag.startWidth + delta)
+      } else {
+        setRightPanelWidth(drag.startWidth - delta)
+      }
+    }
+    const stopDragging = () => { dragRef.current = null }
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', stopDragging)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', stopDragging)
+    }
+  }, [setLeftPanelWidth, setRightPanelWidth])
 
   // Auto-open Inspector when a node gets selected
   useEffect(() => {
     if (selectedNodeId && !ui.rightPanelOpen) {
       toggleRightPanel()
     }
-  }, [selectedNodeId])
+  }, [selectedNodeId, toggleRightPanel, ui.rightPanelOpen])
 
   const activePage = pages.find((p) => p.id === activePageId)
 
@@ -210,9 +251,9 @@ export default function FormBuilder() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className='shell-root'>
       {/* ── Topbar ── */}
-      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
+      <header className='shell-topbar'>
         {/* Left: logo + project name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{
@@ -353,7 +394,7 @@ export default function FormBuilder() {
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
           {workspace === 'pages' && (
-            <GhostButton onClick={toggleFocusMode} title='Activar/desactivar Focus (F o Shift+F)' style={{ fontSize: 11 }}>
+            <GhostButton onClick={toggleFocusMode} title='Activar/desactivar Focus (Shift+F / Esc)' style={{ fontSize: 11 }}>
               {focusModeActive ? '⤫ Exit Focus' : '◉ Focus'}
             </GhostButton>
           )}
@@ -391,18 +432,11 @@ export default function FormBuilder() {
       </header>
 
       {/* ── Main content ── */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div className='shell-main'>
 
         {/* ── Left Icon Sidebar (Wix-style) ── */}
         {workspace === 'pages' && !focusModeActive && (
-          <nav style={{
-            width: 56, flexShrink: 0,
-            background: 'var(--panel)',
-            borderRight: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', padding: '6px 6px 10px', gap: 2,
-            zIndex: 30,
-          }}>
+          <nav className='shell-sidebar'>
             {/* Add block shortcut */}
             <button
               type='button'
@@ -438,40 +472,22 @@ export default function FormBuilder() {
           {/* ── Floating Left Panel ── */}
           {workspace === 'pages' && !focusModeActive && (
             <aside
+              className='shell-float-panel left'
               style={{
-                position: 'absolute', left: 0, top: 0, bottom: 0,
                 width: ui.leftPanelWidth,
-                zIndex: 20,
-                background: 'var(--panel)',
-                borderRight: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column',
                 transform: activeLeftPanel ? 'translateX(0)' : 'translateX(-100%)',
-                transition: 'transform 220ms cubic-bezier(0.4,0,0.2,1), box-shadow 220ms ease',
                 boxShadow: activeLeftPanel ? '4px 0 24px rgba(0,0,0,0.45)' : 'none',
-                willChange: 'transform',
                 pointerEvents: activeLeftPanel ? 'auto' : 'none',
               }}
             >
               {/* Panel header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0 10px 0 14px', height: 40, flexShrink: 0,
-                borderBottom: '1px solid var(--border)',
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                  {activeLeftPanel === 'blocks' ? 'Blocks' : activeLeftPanel === 'layers' ? 'Layers' : activeLeftPanel === 'pages' ? 'Pages' : 'Design'}
-                </span>
+              <ShellPanelHeader title={activeLeftPanel === 'blocks' ? 'Blocks' : activeLeftPanel === 'layers' ? 'Layers' : activeLeftPanel === 'pages' ? 'Pages' : 'Design'}>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <button type='button' title='Reducir ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>−</button>
-                  <button type='button' title='Ampliar ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>+</button>
-                  <button
-                    type='button'
-                    onClick={() => setActiveLeftPanel(null)}
-                    title='Cerrar panel'
-                    style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
-                  >✕</button>
+                  <ShellIconButton title='Reducir ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)}>−</ShellIconButton>
+                  <ShellIconButton title='Ampliar ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)}>+</ShellIconButton>
+                  <ShellIconButton size='md' onClick={() => setActiveLeftPanel(null)} title='Cerrar panel'>✕</ShellIconButton>
                 </div>
-              </div>
+              </ShellPanelHeader>
 
               {/* Panel content */}
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -480,47 +496,43 @@ export default function FormBuilder() {
                 {activeLeftPanel === 'pages' && <PagesPanel />}
                 {activeLeftPanel === 'design' && <SiteDesignPanel />}
               </div>
+              <div
+                className='shell-resize-handle left'
+                onPointerDown={(event) => {
+                  dragRef.current = { side: 'left', startX: event.clientX, startWidth: ui.leftPanelWidth }
+                }}
+              />
             </aside>
           )}
 
           {/* ── Floating Right Panel (Inspector) ── */}
           {workspace === 'pages' && !focusModeActive && (
             <aside
+              className='shell-float-panel right'
               style={{
-                position: 'absolute', right: 0, top: 0, bottom: 0,
                 width: ui.rightPanelWidth,
-                zIndex: 20,
-                background: 'var(--panel)',
-                borderLeft: '1px solid var(--border)',
-                display: 'flex', flexDirection: 'column',
                 transform: ui.rightPanelOpen ? 'translateX(0)' : 'translateX(100%)',
-                transition: 'transform 220ms cubic-bezier(0.4,0,0.2,1), box-shadow 220ms ease',
                 boxShadow: ui.rightPanelOpen ? '-4px 0 24px rgba(0,0,0,0.45)' : 'none',
-                willChange: 'transform',
                 pointerEvents: ui.rightPanelOpen ? 'auto' : 'none',
               }}
             >
               {/* Inspector resize controls */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0 10px 0 14px', height: 40, flexShrink: 0,
-                borderBottom: '1px solid var(--border)',
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>Inspector</span>
+              <ShellPanelHeader title='Inspector'>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <button type='button' title='Reducir ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>−</button>
-                  <button type='button' title='Ampliar ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>+</button>
-                  <button
-                    type='button'
-                    onClick={toggleRightPanel}
-                    title='Cerrar Inspector'
-                    style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
-                  >✕</button>
+                  <ShellIconButton title='Reducir ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)}>−</ShellIconButton>
+                  <ShellIconButton title='Ampliar ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)}>+</ShellIconButton>
+                  <ShellIconButton size='md' onClick={toggleRightPanel} title='Cerrar Inspector'>✕</ShellIconButton>
                 </div>
-              </div>
+              </ShellPanelHeader>
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <Inspector />
               </div>
+              <div
+                className='shell-resize-handle right'
+                onPointerDown={(event) => {
+                  dragRef.current = { side: 'right', startX: event.clientX, startWidth: ui.rightPanelWidth }
+                }}
+              />
             </aside>
           )}
 
