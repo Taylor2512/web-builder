@@ -265,7 +265,7 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
 }
 /* ── On-Canvas Resizer ── */
 function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
-  const updateStyle = useEditorStore((s) => s.updateStyle);
+  const updateNodeStyleByBreakpoint = useEditorStore((s) => s.updateNodeStyleByBreakpoint);
   const handlePointerDown = (
     e: React.PointerEvent<HTMLDivElement>,
     direction: "right" | "bottom" | "bottom-right",
@@ -287,7 +287,7 @@ function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
         updates.width = `${Math.max(20, initialWidth + deltaX)}px`;
       if (direction === "bottom" || direction === "bottom-right")
         updates.height = `${Math.max(20, initialHeight + deltaY)}px`;
-      updateStyle(id, updates);
+      updateNodeStyleByBreakpoint(id, updates);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -364,7 +364,7 @@ function RenderNode({
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
-  const updateProps = useEditorStore((s) => s.updateProps);
+  const updateNodePropsByType = useEditorStore((s) => s.updateNodePropsByType);
   const [isEditingText, setIsEditingText] = useState(false);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
@@ -405,7 +405,7 @@ function RenderNode({
         suppressContentEditableWarning
         onBlur={(e) => {
           setIsEditingText(false);
-          updateProps(id, { text: e.currentTarget.textContent || "" });
+          updateNodePropsByType(id, { text: e.currentTarget.textContent || "" });
         }}
         onPointerDown={(e) => e.stopPropagation()}
         style={{
