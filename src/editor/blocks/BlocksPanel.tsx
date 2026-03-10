@@ -51,6 +51,7 @@ export default function BlocksPanel() {
   const rootId = useEditorStore((s) => s.rootId)
   const nodesById = useEditorStore((s) => s.nodesById)
   const selectNode = useEditorStore((s) => s.selectNode)
+  const enabledBlocks = useEditorStore((s) => s.builderConfig.blocks.enabled)
 
   const renderLayer = (id: string, depth = 0) => {
     const node = nodesById[id]
@@ -75,7 +76,7 @@ export default function BlocksPanel() {
 
       <Card>
         {tab === 'blocks' ? (
-          <div style={{ display: 'grid', gap: 8 }}>{BLOCKS.map((block) => <DraggableBlock key={block.type} {...block} />)}</div>
+          <div style={{ display: 'grid', gap: 8 }}>{BLOCKS.filter((block) => enabledBlocks.includes(block.type)).map((block) => <DraggableBlock key={block.type} {...block} />)}</div>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>{renderLayer(rootId)}</div>
         )}

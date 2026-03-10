@@ -11,7 +11,10 @@ import {
   type NodeId,
   type NodeType,
   type NodesById,
+  type PageDef,
 } from '../types/schema'
+import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
+import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
@@ -22,6 +25,7 @@ type EditorState = EditorProject & {
   selectedNodeId: NodeId | null
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
+  builderConfig: BuilderConfig
   addNode: (parentId: NodeId, node: Node, index?: number) => void
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
@@ -35,6 +39,17 @@ type EditorState = EditorProject & {
   hydrate: (json: string) => void
   reset: () => void
   submitForm: (formId: string, value: unknown) => void
+  setBuilderConfig: (config: BuilderConfig) => void
+  createFlow: (name: string) => void
+  deleteFlow: (id: string) => void
+  selectFlow: (id: string | null) => void
+  renameFlow: (id: string, name: string) => void
+  upsertFlowVariable: (flowId: string, key: string, variable: FlowVariable) => void
+  removeFlowVariable: (flowId: string, key: string) => void
+  addPage: (name: string, path: string) => void
+  selectPage: (pageId: string) => void
+  updatePage: (pageId: string, patch: Partial<Pick<PageDef, 'name' | 'path' | 'title'>>) => void
+  removePage: (pageId: string) => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -53,18 +68,32 @@ const removeDeep = (nodesById: NodesById, id: NodeId) => {
   delete nodesById[id]
 }
 
+const activeRootId = (state: EditorProject) => {
+  const activePage = state.site.pages.find((page) => page.id === state.site.activePageId)
+  return activePage?.rootId ?? state.rootId
+}
+
 const withAutosave = (state: EditorState) => {
   const payload: EditorProject = {
     projectName: state.projectName,
-    rootId: state.rootId,
+    rootId: activeRootId(state),
     nodesById: state.nodesById,
     mode: state.mode,
+    flows: state.flows,
+    site: state.site,
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
 }
 
-const initialProject = safeParse<EditorProject>(localStorage.getItem(STORAGE_KEY), baseTemplate())
+const fallbackTemplate = baseTemplate()
+const initialProjectRaw = safeParse<EditorProject>(localStorage.getItem(STORAGE_KEY), fallbackTemplate)
+const initialProject: EditorProject = {
+  ...initialProjectRaw,
+  flows: initialProjectRaw.flows ?? fallbackTemplate.flows,
+  site: initialProjectRaw.site ?? fallbackTemplate.site,
+  rootId: initialProjectRaw.rootId ?? fallbackTemplate.rootId,
+}
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -72,6 +101,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedNodeId: null,
   activeBreakpoint: 'desktop',
   submissions: initialSubmissions,
+  builderConfig: defaultBuilderConfig,
 
   addNode(parentId, node, index) {
     set(
@@ -90,7 +120,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   removeNode(id) {
     set(
       produce((state: EditorState) => {
-        if (id === state.rootId) return
+        if (id === activeRootId(state)) return
         Object.values(state.nodesById).forEach((node) => {
           node.children = node.children.filter((childId) => childId !== id)
         })
@@ -104,7 +134,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   moveNode(id, newParentId, index) {
     set(
       produce((state: EditorState) => {
-        if (id === state.rootId) return
+        if (id === activeRootId(state)) return
         const parent = state.nodesById[newParentId]
         if (!parent) return
         Object.values(state.nodesById).forEach((node) => {
@@ -163,9 +193,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return JSON.stringify(
       {
         projectName: state.projectName,
-        rootId: state.rootId,
+        rootId: activeRootId(state),
         nodesById: state.nodesById,
         mode: state.mode,
+        flows: state.flows,
+        site: state.site,
       },
       null,
       2,
@@ -174,7 +206,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   hydrate(json) {
     const payload = safeParse<EditorProject>(json, baseTemplate())
-    set({ ...payload, selectedNodeId: null })
+    const ensured = {
+      ...payload,
+      flows: payload.flows ?? baseTemplate().flows,
+      site: payload.site ?? baseTemplate().site,
+    }
+    set({ ...ensured, selectedNodeId: null })
     withAutosave(get())
   },
 
@@ -183,10 +220,146 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+  setBuilderConfig(builderConfig) {
+    set({ builderConfig })
+  },
+
+  createFlow(name) {
+    set(
+      produce((state: EditorState) => {
+        const id = `flow-${createId()}`
+        const flow = createDefaultFlow(id, name || 'Untitled Flow')
+        state.flows.flowsById[id] = flow
+        state.flows.flowOrder.push(id)
+        state.flows.activeFlowId = id
+      }),
+    )
+    withAutosave(get())
+  },
+
+  deleteFlow(id) {
+    set(
+      produce((state: EditorState) => {
+        if (!state.flows.flowsById[id]) return
+        delete state.flows.flowsById[id]
+        state.flows.flowOrder = state.flows.flowOrder.filter((flowId) => flowId !== id)
+        if (state.flows.activeFlowId === id) {
+          state.flows.activeFlowId = state.flows.flowOrder[0] ?? null
+        }
+      }),
+    )
+    withAutosave(get())
+  },
+
+  selectFlow(id) {
+    set(
+      produce((state: EditorState) => {
+        state.flows.activeFlowId = id
+      }),
+    )
+  },
+
+  renameFlow(id, name) {
+    set(
+      produce((state: EditorState) => {
+        const flow: FlowDefinition | undefined = state.flows.flowsById[id]
+        if (!flow) return
+        flow.name = name
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  upsertFlowVariable(flowId, key, variable) {
+    set(
+      produce((state: EditorState) => {
+        const flow = state.flows.flowsById[flowId]
+        if (!flow || !key.trim()) return
+        flow.variables[key.trim()] = variable
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removeFlowVariable(flowId, key) {
+    set(
+      produce((state: EditorState) => {
+        const flow = state.flows.flowsById[flowId]
+        if (!flow) return
+        delete flow.variables[key]
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  addPage(name, path) {
+    set(
+      produce((state: EditorState) => {
+        const root = createNode('page', `page-root-${createId()}`)
+        const section = createNode('section')
+        section.children = []
+        root.children = [section.id]
+        state.nodesById[root.id] = root
+        state.nodesById[section.id] = section
+
+        const pageId = `page-${createId()}`
+        const safePath = path.startsWith('/') ? path : `/${path || pageId}`
+        const nextPage: PageDef = { id: pageId, name: name || 'New Page', path: safePath, rootId: root.id, title: name || 'New Page' }
+        state.site.pages.push(nextPage)
+        state.site.activePageId = pageId
+        state.rootId = root.id
+      }),
+    )
+    withAutosave(get())
+  },
+
+  selectPage(pageId) {
+    set(
+      produce((state: EditorState) => {
+        const page = state.site.pages.find((item) => item.id === pageId)
+        if (!page) return
+        state.site.activePageId = pageId
+        state.rootId = page.rootId
+        state.selectedNodeId = null
+      }),
+    )
+  },
+
+  updatePage(pageId, patch) {
+    set(
+      produce((state: EditorState) => {
+        const page = state.site.pages.find((item) => item.id === pageId)
+        if (!page) return
+        if (patch.name !== undefined) page.name = patch.name
+        if (patch.path !== undefined) page.path = patch.path.startsWith('/') ? patch.path : `/${patch.path}`
+        if (patch.title !== undefined) page.title = patch.title
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removePage(pageId) {
+    set(
+      produce((state: EditorState) => {
+        if (state.site.pages.length <= 1) return
+        const page = state.site.pages.find((item) => item.id === pageId)
+        if (!page) return
+        state.site.pages = state.site.pages.filter((item) => item.id !== pageId)
+        const next = state.site.pages[0]
+        state.site.activePageId = next.id
+        state.rootId = next.rootId
+      }),
+    )
+    withAutosave(get())
+  },
+
   submitForm(formId, value) {
     set(
       produce((state: EditorState) => {
-        const key = `${state.rootId}:${formId}`
+        const key = `${state.site.activePageId}:${formId}`
         const current = state.submissions[key] ?? []
         state.submissions[key] = [...current, value]
       }),

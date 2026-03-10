@@ -8,15 +8,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  rectSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useMemo, useState } from 'react'
 import { buildNode, useEditorStore } from '../state/useEditorStore'
-import { containerTypes, sanitizeUrl, type Breakpoint, type FormField, type Node } from '../types/schema'
+import { containerTypes, sanitizeUrl, type Breakpoint, type FormField, type Node, type NodeType } from '../types/schema'
+import GridOverlay from './viewport/GridOverlay'
+import { useViewport } from './viewport/useViewport'
 
 type DragMeta = { id: string; blockType?: Node['type']; source: 'palette' | 'canvas' }
 
@@ -36,18 +34,13 @@ const validateField = (field: FormField, raw: FormDataEntryValue | null): string
   if (field.minLength && value.length < field.minLength) return `${field.label} min length ${field.minLength}`
   if (field.maxLength && value.length > field.maxLength) return `${field.label} max length ${field.maxLength}`
   if (field.pattern && value && !new RegExp(field.pattern).test(value)) return `${field.label} invalid format`
-  if (field.type === 'number' || field.type === 'range') {
-    const n = Number(value)
-    if (!Number.isNaN(n) && typeof field.min === 'number' && n < field.min) return `${field.label} min ${field.min}`
-    if (!Number.isNaN(n) && typeof field.max === 'number' && n > field.max) return `${field.label} max ${field.max}`
-  }
   return null
 }
 
 const FormPreview = ({ node }: { node: Extract<Node, { type: 'form' }> }) => {
   const submitForm = useEditorStore((s) => s.submitForm)
-  const [output, setOutput] = useState<string>('')
-  const [error, setError] = useState<string>('')
+  const [output, setOutput] = useState('')
+  const [error, setError] = useState('')
 
   return (
     <form
@@ -70,37 +63,15 @@ const FormPreview = ({ node }: { node: Extract<Node, { type: 'form' }> }) => {
         submitForm(node.id, payload)
       }}
     >
-      {node.props.fields.map((field) => {
-        const common = { name: field.name, required: field.required, placeholder: field.placeholder, defaultValue: field.defaultValue }
-        return (
-          <label key={field.id} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-            <span>{field.label}</span>
-            {(field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'password' || field.type === 'tel' || field.type === 'url' || field.type === 'date' || field.type === 'time' || field.type === 'datetime-local' || field.type === 'range' || field.type === 'color' || field.type === 'file') && (
-              <input type={field.type} {...common} min={field.min} max={field.max} minLength={field.minLength} maxLength={field.maxLength} pattern={field.pattern} />
-            )}
-            {field.type === 'textarea' && <textarea {...common} minLength={field.minLength} maxLength={field.maxLength} />}
-            {field.type === 'select' && (
-              <select name={field.name} defaultValue={field.defaultValue}>
-                {(field.options ?? []).map((option) => (
-                  <option key={option.id} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            )}
-            {field.type === 'radio' && (
-              <div>
-                {(field.options ?? []).map((option) => (
-                  <label key={option.id} style={{ marginRight: 8 }}><input type='radio' name={field.name} value={option.value} /> {option.label}</label>
-                ))}
-              </div>
-            )}
-            {(field.type === 'checkbox' || field.type === 'switch') && <input type='checkbox' name={field.name} defaultChecked={field.defaultValue === 'true'} />}
-            {field.helpText && <small style={{ color: 'var(--muted)' }}>{field.helpText}</small>}
-          </label>
-        )
-      })}
+      {node.props.fields.map((field) => (
+        <label key={field.id} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+          <span>{field.label}</span>
+          <input type={field.type === 'switch' ? 'checkbox' : field.type} name={field.name} required={field.required} placeholder={field.placeholder} defaultValue={field.defaultValue} />
+        </label>
+      ))}
       <button type='submit'>{node.props.submitText}</button>
-      {error && <small style={{ color: '#f97316', gridColumn: '1 / -1' }}>{error}</small>}
-      {output && <pre style={{ gridColumn: '1 / -1', background: '#111', padding: 8, borderRadius: 8 }}>{output}</pre>}
+      {error && <small style={{ color: '#f97316' }}>{error}</small>}
+      {output && <pre style={{ background: '#111', color: '#fff', padding: 8, borderRadius: 8 }}>{output}</pre>}
     </form>
   )
 }
@@ -111,7 +82,6 @@ function RenderNode({ id }: { id: string }) {
   const selectNode = useEditorStore((s) => s.selectNode)
   const mode = useEditorStore((s) => s.mode)
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
-
   const { setNodeRef: setSortableRef, transform, transition, attributes, listeners } = useSortable({ id, data: { source: 'canvas' } })
   const canDropInside = node ? containerTypes.includes(node.type) : false
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: `drop-${id}`, disabled: !canDropInside || mode === 'preview' })
@@ -119,30 +89,15 @@ function RenderNode({ id }: { id: string }) {
   if (!node) return null
   const computedStyle = mergeStyle(node, activeBreakpoint)
 
-  const wrapperStyle: React.CSSProperties = {
-    ...computedStyle,
-    padding: computedStyle.padding ?? 12,
-    border: mode === 'edit' ? '1px dashed var(--border)' : undefined,
-    outline: selectedNodeId === id && mode === 'edit' ? '2px solid #6366f1' : undefined,
-    marginBottom: 8,
-  }
-
   let content: React.ReactNode = null
   if (node.type === 'text') {
     const Tag = node.props.tag
-    content = <Tag style={{ textAlign: node.props.align as React.CSSProperties['textAlign'], margin: 0 }}>{node.props.text}</Tag>
+    content = <Tag style={{ textAlign: node.props.align }}>{node.props.text}</Tag>
   }
-  if (node.type === 'button') {
-    content = (
-      <a href={sanitizeUrl(node.props.href)} target={node.props.target} rel='noreferrer'>
-        <button style={{ background: node.props.variant === 'outline' ? 'transparent' : 'var(--primary)' }}>{node.props.label}</button>
-      </a>
-    )
-  }
+  if (node.type === 'button') content = <a href={sanitizeUrl(node.props.href)} target={node.props.target} rel='noreferrer'>{node.props.label}</a>
   if (node.type === 'image') content = <img src={sanitizeUrl(node.props.src)} alt={node.props.alt} style={{ width: '100%', objectFit: node.props.fit }} />
   if (node.type === 'spacer') content = <div style={{ height: node.props.size }} />
   if (node.type === 'divider') content = <hr style={{ borderTop: `${node.props.thickness}px solid var(--border)` }} />
-  if (node.type === 'grid') content = <div style={{ display: 'grid', gridTemplateColumns: `repeat(${node.props.columns}, 1fr)`, gap: node.props.gap }} />
   if (node.type === 'form') content = mode === 'preview' ? <FormPreview node={node} /> : <div>Form block ({node.props.fields.length} fields)</div>
 
   return (
@@ -155,9 +110,9 @@ function RenderNode({ id }: { id: string }) {
         }}
         {...(mode === 'edit' ? attributes : {})}
         {...(mode === 'edit' ? listeners : {})}
-        style={wrapperStyle}
+        style={{ ...computedStyle, padding: computedStyle.padding ?? 12, border: mode === 'edit' ? '1px dashed var(--border)' : undefined, outline: selectedNodeId === id && mode === 'edit' ? '2px solid #6366f1' : undefined, marginBottom: 8 }}
       >
-        {['page', 'section', 'container', 'grid'].includes(node.type) && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{node.type}</div>}
+        {containerTypes.includes(node.type) && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{node.type}</div>}
         {content}
         <SortableContext items={node.children} strategy={rectSortingStrategy}>
           {node.children.map((childId) => <RenderNode key={childId} id={childId} />)}
@@ -174,15 +129,23 @@ export default function Canvas() {
   const nodesById = useEditorStore((s) => s.nodesById)
   const moveNode = useEditorStore((s) => s.moveNode)
   const addNode = useEditorStore((s) => s.addNode)
+  const builderConfig = useEditorStore((s) => s.builderConfig)
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null)
+  const { viewport, zoomIn, zoomOut, resetViewport } = useViewport()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const root = nodesById[rootId]
 
-  const onDragStart = (event: DragStartEvent) => {
-    const blockType = event.active.data.current?.blockType as Node['type'] | undefined
-    const source = (event.active.data.current?.source as DragMeta['source']) ?? 'canvas'
-    setDragMeta({ id: String(event.active.id), blockType, source })
+  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
+    const allowed = builderConfig.constraints.allowedParents[childType]
+    return !allowed || allowed.includes(parentType)
+  }
+
+  const hasChildCapacity = (parentId: string) => {
+    const parent = nodesById[parentId]
+    if (!parent) return false
+    const max = builderConfig.constraints.maxChildren[parent.type]
+    return typeof max !== 'number' || parent.children.length < max
   }
 
   const resolveDropParent = (overId: string | null) => {
@@ -195,18 +158,32 @@ export default function Canvas() {
     return parent?.id ?? rootId
   }
 
+  const onDragStart = (event: DragStartEvent) => {
+    setDragMeta({
+      id: String(event.active.id),
+      blockType: event.active.data.current?.blockType as Node['type'] | undefined,
+      source: (event.active.data.current?.source as DragMeta['source']) ?? 'canvas',
+    })
+  }
+
   const onDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id ? String(event.over.id) : null
     if (!dragMeta) return
     const parentId = resolveDropParent(overId)
-    if (dragMeta.source === 'palette' && dragMeta.blockType) addNode(parentId, buildNode(dragMeta.blockType))
+    const parentNode = nodesById[parentId]
+    if (!parentNode) return
+
+    if (dragMeta.source === 'palette' && dragMeta.blockType) {
+      if (isAllowedParent(dragMeta.blockType, parentNode.type) && hasChildCapacity(parentId)) addNode(parentId, buildNode(dragMeta.blockType))
+    }
+
     if (dragMeta.source === 'canvas') {
       const overNodeId = overId?.replace('drop-', '')
       if (!overNodeId) return
-      const parent = nodesById[parentId]
-      const targetIndex = parent.children.findIndex((id) => id === overNodeId)
+      const targetIndex = parentNode.children.findIndex((nodeId) => nodeId === overNodeId)
       moveNode(dragMeta.id, parentId, targetIndex >= 0 ? targetIndex : undefined)
     }
+
     setDragMeta(null)
   }
 
@@ -218,16 +195,39 @@ export default function Canvas() {
 
   if (!root) return null
 
-  if (mode === 'preview') {
-    return <div style={{ padding: 16, overflow: 'auto', height: '100%' }}><RenderNode id={root.id} /></div>
-  }
+  const canvasFrame = (
+    <div
+      style={{
+        maxWidth: 980,
+        margin: '0 auto',
+        minHeight: 620,
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: 16,
+        background: '#fff',
+        color: '#111',
+        position: 'relative',
+        transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+        transformOrigin: 'top center',
+      }}
+    >
+      <GridOverlay size={builderConfig.grid.size} visible={builderConfig.grid.show && mode === 'edit'} zoom={viewport.zoom} />
+      <RenderNode id={root.id} />
+    </div>
+  )
+
+  if (mode === 'preview') return <div style={{ padding: 16, overflow: 'auto', height: '100%' }}>{canvasFrame}</div>
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div style={{ padding: 16, overflow: 'auto', height: '100%', background: 'linear-gradient(#0f172a, #0b1322)' }}>
-        <div style={{ maxWidth: 980, margin: '0 auto', minHeight: 620, border: '1px solid var(--border)', borderRadius: 16, padding: 16, background: '#fff', color: '#111' }}>
-          <RenderNode id={root.id} />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <button onClick={zoomOut}>-</button>
+          <button onClick={zoomIn}>+</button>
+          <button onClick={resetViewport}>Reset View</button>
+          <span style={{ color: '#cbd5e1', fontSize: 12 }}>Zoom: {Math.round(viewport.zoom * 100)}%</span>
         </div>
+        {canvasFrame}
       </div>
       <DragOverlay>{dragMeta ? <div style={{ padding: '8px 10px', background: '#111827', color: '#fff', borderRadius: 8 }}>{dragLabel}</div> : null}</DragOverlay>
     </DndContext>

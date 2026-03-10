@@ -1,0 +1,178 @@
+{
+  "breakpoints": {
+    "desktop": {
+      "width": 1200
+    },
+    "tablet": {
+      "width": 900
+    },
+    "mobile": {
+      "width": 430
+    }
+  },
+  "grid": {
+    "size": 8,
+    "show": true,
+    "snap": true
+  },
+  "snap": {
+    "grid": true,
+    "guides": true,
+    "spacing": false,
+    "threshold": 6
+  },
+  "blocks": {
+    "enabled": [
+      "section",
+      "container",
+      "grid",
+      "spacer",
+      "divider",
+      "text",
+      "image",
+      "button",
+      "form",
+      "dateInput",
+      "searchSelect",
+      "dataTable",
+      "searchBar",
+      "repeater"
+    ],
+    "defaults": {
+      "section": {
+        "name": "Section"
+      },
+      "container": {
+        "name": "Container"
+      },
+      "text": {
+        "tag": "p",
+        "align": "left"
+      },
+      "button": {
+        "variant": "solid"
+      },
+      "dateInput": {
+        "mode": "date"
+      },
+      "searchSelect": {
+        "source": "static",
+        "searchable": true
+      },
+      "dataTable": {
+        "source": "static",
+        "pagination": true,
+        "pageSize": 10
+      },
+      "searchBar": {
+        "mode": "navigate",
+        "targetQueryKey": "q"
+      },
+      "repeater": {
+        "dataPath": "items",
+        "itemContextName": "item"
+      }
+    }
+  },
+  "constraints": {
+    "allowedParents": {
+      "section": [
+        "page"
+      ],
+      "container": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "grid": [
+        "page",
+        "section",
+        "container"
+      ],
+      "spacer": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "divider": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "text": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "image": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "button": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "form": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ],
+      "dateInput": [
+        "page",
+        "section",
+        "container",
+        "grid",
+        "repeater"
+      ],
+      "searchSelect": [
+        "page",
+        "section",
+        "container",
+        "grid",
+        "repeater"
+      ],
+      "dataTable": [
+        "page",
+        "section",
+        "container",
+        "grid",
+        "repeater"
+      ],
+      "searchBar": [
+        "page",
+        "section",
+        "container",
+        "grid",
+        "repeater"
+      ],
+      "repeater": [
+        "page",
+        "section",
+        "container",
+        "grid"
+      ]
+    },
+    "maxChildren": {
+      "page": 100,
+      "section": 30,
+      "container": 30,
+      "grid": 40,
+      "repeater": 50
+    }
+  },
+  "themeTokens": {
+    "radius": 14,
+    "spacing": 8,
+    "surface": "rgba(255,255,255,0.04)",
+    "primary": "#7c3aed"
+  }
+}
