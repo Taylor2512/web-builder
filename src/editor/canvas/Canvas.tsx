@@ -45,6 +45,32 @@ const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
   return style;
 };
 
+
+const scopeCustomCss = (nodeId: string, css: string) => {
+  if (!css.trim()) return ''
+  return css
+    .split('}')
+    .map((chunk) => {
+      const [selector, body] = chunk.split('{')
+      if (!selector || !body) return ''
+      const scopedSelector = selector
+        .split(',')
+        .map((item) => {
+          const normalized = item.trim()
+          if (!normalized) return ''
+          return normalized.includes('&')
+            ? normalized.replaceAll('&', `[data-node-id="${nodeId}"]`)
+            : `[data-node-id="${nodeId}"] ${normalized}`
+        })
+        .filter(Boolean)
+        .join(', ')
+      if (!scopedSelector) return ''
+      return `${scopedSelector} {${body}}`
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
 const validateField = (
   field: FormField,
   raw: FormDataEntryValue | null,
@@ -636,6 +662,7 @@ function RenderNode({
     >
       <div
         ref={setDroppableRef}
+        data-node-id={node.id}
         onClick={(event) => {
           event.stopPropagation();
           if (mode === "edit") selectNode(id);
@@ -693,6 +720,7 @@ function RenderNode({
             </div>
           )}
 
+        {node.customCss && <style>{scopeCustomCss(node.id, node.customCss)}</style>}
         {content}
 
         <SortableContext items={node.children} strategy={rectSortingStrategy}>

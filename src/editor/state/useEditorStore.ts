@@ -31,6 +31,9 @@ type EditorState = EditorProject & {
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
   updateProps: (id: NodeId, patch: Record<string, unknown>) => void
+  replaceProps: (id: NodeId, nextProps: unknown) => void
+  setCustomCss: (id: NodeId, customCss: string) => void
+  setBindings: (id: NodeId, bindings: { id: string; targetPath: string; sourcePath: string }[]) => void
   updateStyle: (id: NodeId, patch: Record<string, string | number | undefined>, breakpoint?: Breakpoint) => void
   selectNode: (id: NodeId | null) => void
   setMode: (mode: EditorMode) => void
@@ -158,6 +161,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const node = state.nodesById[id]
         if (!node) return
         node.props = { ...node.props, ...patch } as Node['props']
+      }),
+    )
+    withAutosave(get())
+  },
+
+
+  replaceProps(id, nextProps) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.props = nextProps as Node['props']
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setCustomCss(id, customCss) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.customCss = customCss
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setBindings(id, bindings) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.bindings = bindings
       }),
     )
     withAutosave(get())
