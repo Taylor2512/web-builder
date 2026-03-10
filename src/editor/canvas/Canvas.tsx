@@ -2,13 +2,88 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { useMemo, useState } from 'react'
+import { buildNode, useEditorStore } from '../state/useEditorStore'
+import { containerTypes, sanitizeUrl, type Breakpoint, type FormField, type Node, type NodeType } from '../types/schema'
+import GridOverlay from './viewport/GridOverlay'
+import { useViewport } from './viewport/useViewport'
+
+type DragMeta = { id: string; blockType?: Node['type']; source: 'palette' | 'canvas' }
+
+const bpOrder: Breakpoint[] = ['desktop', 'tablet', 'mobile']
+
+const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
+  const style: Record<string, string | number | undefined> = {}
+  const maxIndex = bpOrder.indexOf(activeBreakpoint)
+  for (let i = 0; i <= maxIndex; i += 1) Object.assign(style, node.styleByBreakpoint[bpOrder[i]])
+  return style
+}
+
+const validateField = (field: FormField, raw: FormDataEntryValue | null): string | null => {
+  const value = typeof raw === 'string' ? raw : ''
+  if (field.required && !value) return `${field.label} is required`
+  if (field.type === 'email' && value && !/^\S+@\S+\.\S+$/.test(value)) return `${field.label} must be an email`
+  if (field.minLength && value.length < field.minLength) return `${field.label} min length ${field.minLength}`
+  if (field.maxLength && value.length > field.maxLength) return `${field.label} max length ${field.maxLength}`
+  if (field.pattern && value && !new RegExp(field.pattern).test(value)) return `${field.label} invalid format`
+  return null
+}
+
+const FormPreview = ({ node }: { node: Extract<Node, { type: 'form' }> }) => {
+  const submitForm = useEditorStore((s) => s.submitForm)
+  const [output, setOutput] = useState('')
+  const [error, setError] = useState('')
+
+  return (
+    <form
+      style={{ display: 'grid', gap: 10, gridTemplateColumns: node.props.layout === 'grid' ? '1fr 1fr' : '1fr' }}
+      onSubmit={(event) => {
+        event.preventDefault()
+        setError('')
+        const formData = new FormData(event.currentTarget)
+        const payload: Record<string, unknown> = {}
+        for (const field of node.props.fields) {
+          const raw = formData.get(field.name)
+          const validation = validateField(field, raw)
+          if (validation) {
+            setError(validation)
+            return
+          }
+          payload[field.name] = field.type === 'checkbox' || field.type === 'switch' ? !!raw : raw
+        }
+        setOutput(JSON.stringify(payload, null, 2))
+        submitForm(node.id, payload)
+      }}
+    >
+      {node.props.fields.map((field) => (
+        <label key={field.id} style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+          <span>{field.label}</span>
+          <input type={field.type === 'switch' ? 'checkbox' : field.type} name={field.name} required={field.required} placeholder={field.placeholder} defaultValue={field.defaultValue} />
+        </label>
+      ))}
+      <button type='submit'>{node.props.submitText}</button>
+      {error && <small style={{ color: '#f97316' }}>{error}</small>}
+      {output && <pre style={{ background: '#111', color: '#fff', padding: 8, borderRadius: 8 }}>{output}</pre>}
+    </form>
+  )
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState, useEffect } from "react";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import { type Breakpoint, type Node } from "../types/schema";
 import GridOverlay from "./viewport/GridOverlay";
@@ -16,19 +91,29 @@ import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
 import { FormPreview } from "./renderers/FormPreview";
 import {
-  findParentId,
-  hasChildCapacity,
-  isAllowedParent,
-  isDescendant,
-  resolveDropIndex,
-  resolveDropParent,
-} from "./interaction/dnd";
+  containerTypes,
+  sanitizeUrl,
+  type Breakpoint,
+  type FormField,
+  type Node,
+  type NodeType,
+} from "../types/schema";
+import GridOverlay from "./viewport/GridOverlay";
+import { useViewport } from "./viewport/useViewport";
+import { IconButton } from "../../shared/ui";
+import {
+  resolveBinding,
+  type BindingError,
+} from "../bindings/resolveBinding";
 
 type DragMeta = {
   id: string;
   blockType?: Node["type"];
   source: "palette" | "canvas";
 };
+
+type BindingIssue = BindingError & { nodeId: string; prop: string };
+type BindingContext = Record<string, unknown>;
 
 const bpOrder: Breakpoint[] = ["desktop", "tablet", "mobile"];
 
@@ -59,14 +144,16 @@ const TYPE_COLOR: Record<string, string> = {
   repeater: "#f59e0b",
 };
 
-/* ── Edit-mode node toolbar ── */
-function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
-  const removeNode = useEditorStore((s) => s.removeNode);
-  const duplicateNode = useEditorStore((s) => s.duplicateNode);
-  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
-  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
-
-  const ToolBtn = ({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) => (
+function ToolbarButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
     <button
       onClick={onClick}
       title={title}
@@ -79,6 +166,14 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
       {children}
     </button>
   );
+}
+
+/* ── Edit-mode node toolbar ── */
+function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
+  const removeNode = useEditorStore((s) => s.removeNode);
+  const duplicateNode = useEditorStore((s) => s.duplicateNode);
+  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
+  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
 
   return (
     <div
@@ -121,15 +216,15 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
           background: "rgba(0,0,0,0.75)", borderRadius: "6px 6px 0 0",
           padding: "3px 5px", backdropFilter: "blur(6px)",
         }}>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolBtn>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolBtn>
-          <ToolBtn onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolBtn>
-          <ToolBtn
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolbarButton>
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolbarButton>
+          <ToolbarButton onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolbarButton>
+          <ToolbarButton
             onClick={() => { onDelete(); removeNode(node.id); }}
             title="Eliminar bloque"
           >
             <span style={{ color: "#fca5a5" }}>✕</span>
-          </ToolBtn>
+          </ToolbarButton>
         </div>
       )}
     </div>
@@ -137,7 +232,7 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
 }
 /* ── On-Canvas Resizer ── */
 function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
-  const updateNodeStyleByBreakpoint = useEditorStore((s) => s.updateNodeStyleByBreakpoint);
+  const updateStyle = useEditorStore((s) => s.updateStyle);
   const handlePointerDown = (
     e: React.PointerEvent<HTMLDivElement>,
     direction: "right" | "bottom" | "bottom-right",
@@ -159,7 +254,7 @@ function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
         updates.width = `${Math.max(20, initialWidth + deltaX)}px`;
       if (direction === "bottom" || direction === "bottom-right")
         updates.height = `${Math.max(20, initialHeight + deltaY)}px`;
-      updateNodeStyleByBreakpoint(id, updates);
+      updateStyle(id, updates);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -169,6 +264,162 @@ function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
     window.addEventListener("pointerup", onUp);
   };
 
+function RenderNode({ id }: { id: string }) {
+  const node = useEditorStore((s) => s.nodesById[id])
+  const selectedNodeId = useEditorStore((s) => s.selectedNodeId)
+  const selectNode = useEditorStore((s) => s.selectNode)
+  const mode = useEditorStore((s) => s.mode)
+  const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
+  const { setNodeRef: setSortableRef, transform, transition, attributes, listeners } = useSortable({ id, data: { source: 'canvas' } })
+  const canDropInside = node ? containerTypes.includes(node.type) : false
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: `drop-${id}`, disabled: !canDropInside || mode === 'preview' })
+
+  if (!node) return null
+  const computedStyle = mergeStyle(node, activeBreakpoint)
+
+  let content: React.ReactNode = null
+  if (node.type === 'text') {
+    const Tag = node.props.tag
+    content = <Tag style={{ textAlign: node.props.align }}>{node.props.text}</Tag>
+  }
+  if (node.type === 'button') content = <a href={sanitizeUrl(node.props.href)} target={node.props.target} rel='noreferrer'>{node.props.label}</a>
+  if (node.type === 'image') content = <img src={sanitizeUrl(node.props.src)} alt={node.props.alt} style={{ width: '100%', objectFit: node.props.fit }} />
+  if (node.type === 'spacer') content = <div style={{ height: node.props.size }} />
+  if (node.type === 'divider') content = <hr style={{ borderTop: `${node.props.thickness}px solid var(--border)` }} />
+  if (node.type === 'form') content = mode === 'preview' ? <FormPreview node={node} /> : <div>Form block ({node.props.fields.length} fields)</div>
+
+  return (
+    <div ref={setSortableRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
+      <div
+        ref={setDroppableRef}
+        onClick={(event) => {
+          event.stopPropagation()
+          if (mode === 'edit') selectNode(id)
+        }}
+        {...(mode === 'edit' ? attributes : {})}
+        {...(mode === 'edit' ? listeners : {})}
+        style={{ ...computedStyle, padding: computedStyle.padding ?? 12, border: mode === 'edit' ? '1px dashed var(--border)' : undefined, outline: selectedNodeId === id && mode === 'edit' ? '2px solid #6366f1' : undefined, marginBottom: 8 }}
+      >
+        {containerTypes.includes(node.type) && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{node.type}</div>}
+        {content}
+        <SortableContext items={node.children} strategy={rectSortingStrategy}>
+          {node.children.map((childId) => <RenderNode key={childId} id={childId} />)}
+        </SortableContext>
+        {isOver && mode === 'edit' && <div style={{ border: '1px solid #818cf8', borderRadius: 8, padding: 6, fontSize: 11 }}>Drop here</div>}
+      </div>
+    </div>
+  )
+}
+
+export default function Canvas() {
+  const rootId = useEditorStore((s) => s.rootId)
+  const mode = useEditorStore((s) => s.mode)
+  const nodesById = useEditorStore((s) => s.nodesById)
+  const moveNode = useEditorStore((s) => s.moveNode)
+  const addNode = useEditorStore((s) => s.addNode)
+  const builderConfig = useEditorStore((s) => s.builderConfig)
+  const [dragMeta, setDragMeta] = useState<DragMeta | null>(null)
+  const { viewport, zoomIn, zoomOut, resetViewport } = useViewport()
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const root = nodesById[rootId]
+
+  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
+    const allowed = builderConfig.constraints.allowedParents[childType]
+    return !allowed || allowed.includes(parentType)
+  }
+
+  const hasChildCapacity = (parentId: string) => {
+    const parent = nodesById[parentId]
+    if (!parent) return false
+    const max = builderConfig.constraints.maxChildren[parent.type]
+    return typeof max !== 'number' || parent.children.length < max
+  }
+
+  const resolveDropParent = (overId: string | null) => {
+    if (!overId) return rootId
+    if (overId.startsWith('drop-')) return overId.replace('drop-', '')
+    const overNode = nodesById[overId]
+    if (!overNode) return rootId
+    if (containerTypes.includes(overNode.type)) return overNode.id
+    const parent = Object.values(nodesById).find((node) => node.children.includes(overNode.id))
+    return parent?.id ?? rootId
+  }
+
+  const onDragStart = (event: DragStartEvent) => {
+    setDragMeta({
+      id: String(event.active.id),
+      blockType: event.active.data.current?.blockType as Node['type'] | undefined,
+      source: (event.active.data.current?.source as DragMeta['source']) ?? 'canvas',
+    })
+  }
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const overId = event.over?.id ? String(event.over.id) : null
+    if (!dragMeta) return
+    const parentId = resolveDropParent(overId)
+    const parentNode = nodesById[parentId]
+    if (!parentNode) return
+
+    if (dragMeta.source === 'palette' && dragMeta.blockType) {
+      if (isAllowedParent(dragMeta.blockType, parentNode.type) && hasChildCapacity(parentId)) addNode(parentId, buildNode(dragMeta.blockType))
+    }
+
+    if (dragMeta.source === 'canvas') {
+      const overNodeId = overId?.replace('drop-', '')
+      if (!overNodeId) return
+      const targetIndex = parentNode.children.findIndex((nodeId) => nodeId === overNodeId)
+      moveNode(dragMeta.id, parentId, targetIndex >= 0 ? targetIndex : undefined)
+    }
+
+    setDragMeta(null)
+  }
+
+  const dragLabel = useMemo(() => {
+    if (!dragMeta) return ''
+    if (dragMeta.source === 'palette') return `New ${dragMeta.blockType}`
+    return nodesById[dragMeta.id]?.type ?? 'Moving block'
+  }, [dragMeta, nodesById])
+
+  if (!root) return null
+
+  const canvasFrame = (
+    <div
+      style={{
+        maxWidth: 980,
+        margin: '0 auto',
+        minHeight: 620,
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: 16,
+        background: '#fff',
+        color: '#111',
+        position: 'relative',
+        transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+        transformOrigin: 'top center',
+      }}
+    >
+      <GridOverlay size={builderConfig.grid.size} visible={builderConfig.grid.show && mode === 'edit'} zoom={viewport.zoom} />
+      <RenderNode id={root.id} />
+    </div>
+  )
+
+  if (mode === 'preview') return <div style={{ padding: 16, overflow: 'auto', height: '100%' }}>{canvasFrame}</div>
+
+  return (
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <div style={{ padding: 16, overflow: 'auto', height: '100%', background: 'linear-gradient(#0f172a, #0b1322)' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <button onClick={zoomOut}>-</button>
+          <button onClick={zoomIn}>+</button>
+          <button onClick={resetViewport}>Reset View</button>
+          <span style={{ color: '#cbd5e1', fontSize: 12 }}>Zoom: {Math.round(viewport.zoom * 100)}%</span>
+        </div>
+        {canvasFrame}
+      </div>
+      <DragOverlay>{dragMeta ? <div style={{ padding: '8px 10px', background: '#111827', color: '#fff', borderRadius: 8 }}>{dragLabel}</div> : null}</DragOverlay>
+    </DndContext>
+  )
   const handleColor = TYPE_COLOR[nodeType] ?? "#6366f1";
   const handleRawStyle: React.CSSProperties = {
     position: "absolute",
@@ -227,16 +478,20 @@ function RenderNode({
   id,
   hoveredDropId,
   dragMeta,
+  bindingContext,
+  onBindingIssues,
 }: {
   id: string;
   hoveredDropId: string | null;
   dragMeta: DragMeta | null;
+  bindingContext: BindingContext;
+  onBindingIssues: (nodeId: string, issues: BindingIssue[]) => void;
 }) {
   const node = useEditorStore((s) => s.nodesById[id]);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
-  const updateNodePropsByType = useEditorStore((s) => s.updateNodePropsByType);
+  const updateProps = useEditorStore((s) => s.updateProps);
   const [isEditingText, setIsEditingText] = useState(false);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
@@ -265,11 +520,25 @@ function RenderNode({
     mode === "edit" &&
     dragMeta?.source === "canvas";
   const isContainer = containerTypes.includes(node.type);
+  const nodeBindingContext = bindingContext;
+
+  const resolveNodeBinding = (prop: string, rawValue: unknown) => {
+    const result = resolveBinding(rawValue, nodeBindingContext);
+    return {
+      value: result.value,
+      issues: result.errors.map((error) => ({ ...error, nodeId: node.id, prop })),
+    };
+  };
+
+  const nodeIssues: BindingIssue[] = [];
 
   /* ── Content per type ── */
   let content: React.ReactNode = null;
 
   if (node.type === "text") {
+    const resolvedText = resolveNodeBinding("text", node.props.text);
+    nodeIssues.push(...resolvedText.issues);
+    const textValue = typeof resolvedText.value === "string" ? resolvedText.value : String(resolvedText.value ?? "");
     const Tag = node.props.tag as keyof React.JSX.IntrinsicElements;
     content = isEditingText && mode === "edit" ? (
       <Tag
@@ -277,7 +546,7 @@ function RenderNode({
         suppressContentEditableWarning
         onBlur={(e) => {
           setIsEditingText(false);
-          updateNodePropsByType(id, { text: e.currentTarget.textContent || "" });
+          updateProps(id, { text: e.currentTarget.textContent || "" });
         }}
         onPointerDown={(e) => e.stopPropagation()}
         style={{
@@ -302,7 +571,7 @@ function RenderNode({
           cursor: mode === "edit" ? "text" : "inherit"
         }}
       >
-        {node.props.text || (
+        {(mode === "preview" ? textValue : node.props.text) || (
           <span style={{ color: "#aaa", fontStyle: "italic" }}>
             Empty text… (Double click to edit)
           </span>
@@ -334,11 +603,16 @@ function RenderNode({
   }
 
   if (node.type === "image") {
-    if (node.props.src) {
+    const resolvedSrc = resolveNodeBinding("src", node.props.src);
+    const resolvedAlt = resolveNodeBinding("alt", node.props.alt);
+    nodeIssues.push(...resolvedSrc.issues, ...resolvedAlt.issues);
+    const srcValue = String(resolvedSrc.value ?? "");
+    const altValue = String(resolvedAlt.value ?? "");
+    if (srcValue) {
       content = (
         <img
-          src={sanitizeUrl(node.props.src)}
-          alt={node.props.alt}
+          src={sanitizeUrl(srcValue)}
+          alt={altValue}
           style={{
             width: "100%",
             display: "block",
@@ -369,6 +643,81 @@ function RenderNode({
         </div>
       );
     }
+  }
+
+  if (node.type === "searchSelect") {
+    const sourcePath = resolveNodeBinding("dataPath", node.props.dataPath ?? "");
+    nodeIssues.push(...sourcePath.issues);
+    const dynamicOptions = Array.isArray(sourcePath.value)
+      ? sourcePath.value
+      : [];
+    const options =
+      mode === "preview" && node.props.source === "dataSource"
+        ? dynamicOptions.map((option, index) => ({
+            id: `bound-${index}`,
+            label: String((option as Record<string, unknown>)?.label ?? option),
+            value: String((option as Record<string, unknown>)?.value ?? option),
+          }))
+        : node.props.options;
+    content = (
+      <label style={{ display: "grid", gap: 5, fontSize: 13 }}>
+        <span style={{ fontWeight: 600, color: "#374151" }}>{node.props.label}</span>
+        <select
+          multiple={node.props.multiple}
+          name={node.props.name}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #d1d5db" }}
+        >
+          {!node.props.multiple && <option value="">{node.props.placeholder}</option>}
+          {options.map((option) => (
+            <option key={option.id} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  if (node.type === "dataTable") {
+    const rowsBinding = resolveNodeBinding("dataPath", node.props.dataPath ?? "");
+    nodeIssues.push(...rowsBinding.issues);
+    const rows =
+      mode === "preview" && node.props.source === "dataSource" && Array.isArray(rowsBinding.value)
+        ? rowsBinding.value
+        : node.props.rows;
+
+    content = (
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr>
+              {node.props.columns.map((column) => (
+                <th
+                  key={column.id}
+                  style={{ textAlign: column.align, borderBottom: "1px solid #e5e7eb", padding: "8px" }}
+                >
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(rows as Record<string, unknown>[]).slice(0, node.props.pageSize || 10).map((row, rowIndex) => (
+              <tr key={`row-${rowIndex}`}>
+                {node.props.columns.map((column) => (
+                  <td
+                    key={column.id}
+                    style={{ textAlign: column.align, borderBottom: "1px solid #f1f5f9", padding: "8px" }}
+                  >
+                    {String(row[column.accessor] ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   if (node.type === "spacer") {
@@ -467,6 +816,24 @@ function RenderNode({
         </div>
       );
   }
+
+  const repeaterBinding =
+    node.type === "repeater"
+      ? resolveNodeBinding("dataPath", node.props.dataPath)
+      : null;
+  if (repeaterBinding) nodeIssues.push(...repeaterBinding.issues);
+  const repeaterItems = repeaterBinding?.value;
+
+  const issuesSignature = nodeIssues
+    .map((issue) => `${issue.prop}|${issue.expression}|${issue.message}`)
+    .join(";");
+
+  /* eslint-disable react-hooks/exhaustive-deps */
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    onBindingIssues(node.id, nodeIssues);
+  }, [node.id, onBindingIssues, issuesSignature]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   /* ── Border / selection style ── */
   const editBorder =
@@ -567,16 +934,35 @@ function RenderNode({
 
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode
-              key={childId}
-              id={childId}
-              hoveredDropId={hoveredDropId}
-              dragMeta={dragMeta}
-            />
-          ))}
-        </SortableContext>
+        {node.type === "repeater" && mode === "preview" && Array.isArray(repeaterItems) ? (
+          (repeaterItems as unknown[]).map((item, index) => (
+            <div key={`${node.id}-item-${index}`} style={{ marginBottom: 8 }}>
+              {node.children.map((childId) => (
+                <RenderNode
+                  key={`${childId}-${index}`}
+                  id={childId}
+                  hoveredDropId={hoveredDropId}
+                  dragMeta={dragMeta}
+                  bindingContext={{ ...nodeBindingContext, [node.props.itemContextName]: item, index }}
+                  onBindingIssues={onBindingIssues}
+                />
+              ))}
+            </div>
+          ))
+        ) : (
+          <SortableContext items={node.children} strategy={rectSortingStrategy}>
+            {node.children.map((childId) => (
+              <RenderNode
+                key={childId}
+                id={childId}
+                hoveredDropId={hoveredDropId}
+                dragMeta={dragMeta}
+                bindingContext={nodeBindingContext}
+                onBindingIssues={onBindingIssues}
+              />
+            ))}
+          </SortableContext>
+        )}
 
         {/* Drop insert overlay */}
         {showInsertHint && (
@@ -653,18 +1039,59 @@ export default function Canvas() {
   const addNode = useEditorStore((s) => s.addNode);
   const builderConfig = useEditorStore((s) => s.builderConfig);
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
+  const submissions = useEditorStore((s) => s.submissions);
+  const [bindingIssues, setBindingIssues] = useState<Record<string, BindingIssue[]>>({});
+
+  const previewBindingContext = useMemo<BindingContext>(
+    () => ({
+      data: {
+        products: [
+          { name: "Keyboard", price: 99.99 },
+          { name: "Mouse", price: 39.5 },
+        ],
+        submissions,
+      },
+    }),
+    [submissions],
+  );
+
+  const onBindingIssues = useCallback((nodeId: string, issues: BindingIssue[]) => {
+    setBindingIssues((prev) => {
+      const current = prev[nodeId] ?? [];
+      const sameLength = current.length === issues.length;
+      const sameContent =
+        sameLength &&
+        current.every((item, index) =>
+          item.prop === issues[index]?.prop &&
+          item.expression === issues[index]?.expression &&
+          item.message === issues[index]?.message,
+        );
+
+      if (sameContent) return prev;
+
+      const next = { ...prev };
+      if (issues.length) next[nodeId] = issues;
+      else delete next[nodeId];
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Backspace" || event.key === "Delete") {
+    const allIssues = Object.values(bindingIssues).flat();
+    if (!allIssues.length) return;
+    console.warn("[bindings] Non-blocking binding issues detected", allIssues);
+  }, [bindingIssues]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Backspace" || e.key === "Delete") {
         const activeEl = document.activeElement as HTMLElement | null;
         if (
           activeEl?.tagName === "INPUT" ||
           activeEl?.tagName === "TEXTAREA" ||
           activeEl?.isContentEditable
-        ) {
+        )
           return;
-        }
 
         const state = useEditorStore.getState();
         if (state.mode === "edit" && state.selectedNodeId) {
@@ -675,11 +1102,9 @@ export default function Canvas() {
         }
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
   const [hoveredDropId, setHoveredDropId] = useState<string | null>(null);
   const { viewport, zoomIn, zoomOut, resetViewport } = useViewport();
 
@@ -688,11 +1113,53 @@ export default function Canvas() {
   );
   const root = nodesById[rootId];
 
+  const findParentId = (childId: string) =>
+    Object.values(nodesById).find((n) => n.children.includes(childId))?.id;
+
+  const isDescendant = (ancestorId: string, targetId: string): boolean => {
+    const n = nodesById[ancestorId];
+    if (!n) return false;
+    if (n.children.includes(targetId)) return true;
+    return n.children.some((cId) => isDescendant(cId, targetId));
+  };
+
+  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
+    const allowed = builderConfig.constraints.allowedParents[childType];
+    return !allowed || allowed.includes(parentType);
+  };
+
+  const hasChildCapacity = (parentId: string) => {
+    const parent = nodesById[parentId];
+    if (!parent) return false;
+    const max = builderConfig.constraints.maxChildren[parent.type];
+    return typeof max !== "number" || parent.children.length < max;
+  };
+
+  const resolveDropParent = (overId: string | null) => {
+    if (!overId) return rootId;
+    if (overId.startsWith("drop-")) return overId.replace("drop-", "");
+    const overNode = nodesById[overId];
+    if (!overNode) return rootId;
+    if (containerTypes.includes(overNode.type)) return overNode.id;
+    return findParentId(overNode.id) ?? rootId;
+  };
+
+  const resolveDropIndex = (overId: string | null, parentId: string) => {
+    if (!overId || overId.startsWith("drop-")) return undefined;
+    const parentNode = nodesById[parentId];
+    if (!parentNode) return undefined;
+    const idx = parentNode.children.findIndex((c) => c === overId);
+    return idx >= 0 ? idx : undefined;
+  };
+
   const onDragStart = (event: DragStartEvent) => {
     setDragMeta({
       id: String(event.active.id),
-      blockType: event.active.data.current?.blockType as Node["type"] | undefined,
-      source: (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
+      blockType: event.active.data.current?.blockType as
+        | Node["type"]
+        | undefined,
+      source:
+        (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
     });
     setHoveredDropId(null);
   };
@@ -700,42 +1167,31 @@ export default function Canvas() {
   const onDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id ? String(event.over.id) : null;
     if (!dragMeta) return;
-
-    const parentId = resolveDropParent(overId, nodesById, rootId);
+    const parentId = resolveDropParent(overId);
     const parentNode = nodesById[parentId];
     if (!parentNode) return;
 
     if (dragMeta.source === "palette" && dragMeta.blockType) {
-      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
+      const dropIndex = resolveDropIndex(overId, parentId);
       if (
-        isAllowedParent(
-          dragMeta.blockType,
-          parentNode.type,
-          builderConfig.constraints.allowedParents,
-        ) &&
-        hasChildCapacity(
-          parentId,
-          nodesById,
-          builderConfig.constraints.maxChildren,
-        )
+        isAllowedParent(dragMeta.blockType, parentNode.type) &&
+        hasChildCapacity(parentId)
       ) {
         addNode(parentId, buildNode(dragMeta.blockType), dropIndex);
       }
     }
 
     if (dragMeta.source === "canvas") {
-      if (
-        dragMeta.id === parentId ||
-        isDescendant(nodesById, dragMeta.id, parentId)
-      ) {
+      if (dragMeta.id === parentId || isDescendant(dragMeta.id, parentId)) {
         setDragMeta(null);
         return;
       }
-
-      const currentParentId = findParentId(nodesById, dragMeta.id);
-      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
+      const currentParentId = findParentId(dragMeta.id);
+      const dropIndex = resolveDropIndex(overId, parentId);
       if (currentParentId === parentId && dropIndex !== undefined) {
-        const currentIndex = parentNode.children.findIndex((c) => c === dragMeta.id);
+        const currentIndex = parentNode.children.findIndex(
+          (c) => c === dragMeta.id,
+        );
         moveNode(
           dragMeta.id,
           parentId,
@@ -745,7 +1201,6 @@ export default function Canvas() {
         moveNode(dragMeta.id, parentId, dropIndex);
       }
     }
-
     setDragMeta(null);
     setHoveredDropId(null);
   };
@@ -792,14 +1247,49 @@ export default function Canvas() {
         visible={builderConfig.grid.show && mode === "edit"}
         zoom={viewport.zoom}
       />
-      <RenderNode id={root.id} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
+      <RenderNode
+        id={root.id}
+        hoveredDropId={hoveredDropId}
+        dragMeta={dragMeta}
+        bindingContext={previewBindingContext}
+        onBindingIssues={onBindingIssues}
+      />
     </div>
   );
 
   if (mode === "preview") {
     return (
-      <div style={{ padding: 24, overflow: "auto", height: "100%", background: "#f1f5f9" }}>
+      <div
+        style={{
+          padding: 24,
+          overflow: "auto",
+          height: "100%",
+          background: "#f1f5f9",
+        }}
+      >
         {canvasFrame}
+        {Object.values(bindingIssues).flat().length > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              background: "#fff7ed",
+              border: "1px solid #fdba74",
+              color: "#9a3412",
+              borderRadius: 8,
+              padding: 12,
+              fontSize: 12,
+            }}
+          >
+            <strong>Binding debug</strong>
+            {Object.values(bindingIssues)
+              .flat()
+              .map((issue, index) => (
+                <div key={`${issue.nodeId}-${issue.prop}-${index}`}>
+                  node {issue.nodeId} · {issue.prop}: {issue.message}
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -820,6 +1310,7 @@ export default function Canvas() {
           background: "#0e1520",
         }}
       >
+        {/* Zoom toolbar */}
         <div
           style={{
             display: "flex",
@@ -875,7 +1366,10 @@ export default function Canvas() {
           )}
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>{canvasFrame}</div>
+        {/* Canvas scroll area */}
+        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>
+          {canvasFrame}
+        </div>
       </div>
 
       <DragOverlay dropAnimation={null}>

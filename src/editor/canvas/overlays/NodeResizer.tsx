@@ -3,6 +3,7 @@ import { TYPE_COLOR } from "../styles/nodeColors";
 
 export function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
   const updateStyle = useEditorStore((s) => s.updateStyle);
+  const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
 
   const handlePointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -31,7 +32,7 @@ export function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) 
         updates.height = `${Math.max(20, initialHeight + deltaY)}px`;
       }
 
-      updateStyle(id, updates);
+      updateStyle(id, updates, activeBreakpoint);
     };
 
     const onUp = () => {

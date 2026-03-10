@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useEditorStore } from '../state/useEditorStore'
 
 /* ─── Theme presets ─────────────────────────────────────── */
@@ -13,6 +13,14 @@ const THEME_PRESETS = [
 
 const HEADING_FONTS = ['Inter', 'Montserrat', 'Playfair Display', 'Poppins', 'Raleway', 'Roboto']
 const BODY_FONTS = ['Inter', 'Lato', 'Merriweather', 'Nunito', 'Open Sans', 'Source Sans Pro']
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--muted)', textTransform: 'uppercase', padding: '14px 14px 8px' }}>
+      {children}
+    </div>
+  )
+}
 
 export default function SiteDesignPanel() {
   const [primaryColor, setPrimaryColor] = useState(() =>
@@ -39,12 +47,6 @@ export default function SiteDesignPanel() {
       `'${font}', sans-serif`,
     )
   }
-
-  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--muted)', textTransform: 'uppercase', padding: '14px 14px 8px' }}>
-      {children}
-    </div>
-  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
