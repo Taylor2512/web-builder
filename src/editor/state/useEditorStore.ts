@@ -16,6 +16,13 @@ import {
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
 import { saveRemoteSubmission } from '../api/jsonServer'
+import {
+  instantiateTemplateNodes,
+  loadLibraryState,
+  saveLibraryState,
+  serializeSelectionAsTemplate,
+  type LibraryTemplate,
+} from '../library'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
@@ -27,6 +34,7 @@ type EditorState = EditorProject & {
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
   builderConfig: BuilderConfig
+  libraryTemplates: LibraryTemplate[]
   addNode: (parentId: NodeId, node: Node, index?: number) => void
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
@@ -67,6 +75,9 @@ type EditorState = EditorProject & {
   toggleNodeVisibility: (id: NodeId) => void
   showNode: (id: NodeId) => void
   showAllNodes: () => void
+  saveSelectionAsTemplate: (name: string) => void
+  insertTemplate: (templateId: string, parentId: NodeId, index?: number) => void
+  removeTemplate: (templateId: string) => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -137,6 +148,7 @@ const withAutosave = (state: EditorState) => {
   const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
+  saveLibraryState({ templates: state.libraryTemplates })
 }
 
 const fallbackTemplate = baseTemplate()
@@ -149,12 +161,14 @@ const initialProject: EditorProject = {
   ui: normalizeUi(initialProjectRaw),
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
+const initialLibrary = loadLibraryState()
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProject,
   selectedNodeId: null,
   activeBreakpoint: 'desktop',
   submissions: initialSubmissions,
+  libraryTemplates: initialLibrary.templates,
   builderConfig: defaultBuilderConfig,
 
   addNode(parentId, node, index) {
@@ -555,6 +569,57 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         Object.values(state.nodesById).forEach((node) => {
           node.isHidden = false
         })
+      }),
+    )
+    withAutosave(get())
+  },
+
+  saveSelectionAsTemplate(name) {
+    set(
+      produce((state: EditorState) => {
+        const selectionId = state.selectedNodeId
+        if (!selectionId || selectionId === activeRootId(state)) return
+        const serialized = serializeSelectionAsTemplate({
+          selectionId,
+          sourceNodesById: state.nodesById,
+          name,
+        })
+        if (!serialized) return
+        state.libraryTemplates.unshift(serialized)
+      }),
+    )
+    withAutosave(get())
+  },
+
+  insertTemplate(templateId, parentId, index) {
+    set(
+      produce((state: EditorState) => {
+        const template = state.libraryTemplates.find((item) => item.id === templateId)
+        const parent = state.nodesById[parentId]
+        if (!template || !parent) return
+        const templateRoot = template.nodesById[template.rootNodeId]
+        if (!templateRoot) return
+
+        const allowedParents = state.builderConfig.constraints.allowedParents[templateRoot.type]
+        if (allowedParents && !allowedParents.includes(parent.type)) return
+
+        const maxChildren = state.builderConfig.constraints.maxChildren[parent.type]
+        if (typeof maxChildren === 'number' && parent.children.length >= maxChildren) return
+
+        const instance = instantiateTemplateNodes(template)
+        Object.assign(state.nodesById, instance.nodesById)
+
+        if (typeof index === 'number') parent.children.splice(index, 0, instance.rootNodeId)
+        else parent.children.push(instance.rootNodeId)
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removeTemplate(templateId) {
+    set(
+      produce((state: EditorState) => {
+        state.libraryTemplates = state.libraryTemplates.filter((template) => template.id !== templateId)
       }),
     )
     withAutosave(get())

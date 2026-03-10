@@ -38,7 +38,6 @@ export default function FormBuilder() {
   const rootId = useEditorStore((s) => s.rootId)
   const ui = useEditorStore((s) => s.ui)
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel)
-  const togglePanels = useEditorStore((s) => s.togglePanels)
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode)
   const setFocusMode = useEditorStore((s) => s.setFocusMode)
   const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
@@ -117,14 +116,14 @@ export default function FormBuilder() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, togglePanels])
+  }, [mode, nodesById, removeNode, selectedNodeId, setActiveLeftPanel, toggleFocusMode, ui.activeLeftPanel])
 
   // Auto-open Inspector when a node gets selected
   useEffect(() => {
     if (selectedNodeId && !ui.rightPanelOpen) {
       toggleRightPanel()
     }
-  }, [selectedNodeId])
+  }, [selectedNodeId, toggleRightPanel, ui.rightPanelOpen])
 
   const activePage = pages.find((p) => p.id === activePageId)
 

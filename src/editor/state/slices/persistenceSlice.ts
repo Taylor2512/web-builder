@@ -8,6 +8,12 @@ import {
   setActivePersistenceRepository,
   type PersistencePreference,
 } from '../../persistence'
+import {
+  instantiateTemplateNodes,
+  loadLibraryState,
+  saveLibraryState,
+  serializeSelectionAsTemplate,
+} from '../../library'
 import { baseTemplate, type EditorProject } from '../../types/schema'
 import { projectSnapshot } from '../helpers/projectSnapshot'
 import { safeParse } from '../helpers/safeParse'
@@ -20,6 +26,11 @@ const resolveInitialPreference = (): PersistencePreference => {
   const raw = localStorage.getItem(PERSISTENCE_PREFERENCE_KEY)
   if (raw === 'local' || raw === 'json-server' || raw === 'auto') return raw
   return 'auto'
+}
+
+const activeRootId = (state: EditorStore) => {
+  const activePage = state.site.pages.find((page) => page.id === state.site.activePageId)
+  return activePage?.rootId ?? state.rootId
 }
 
 const normalizeProject = (input: EditorProject): EditorProject => {
@@ -43,6 +54,7 @@ export const initialProject = (): EditorProject => {
 }
 
 export const initialSubmissions = (): SubmissionMap => safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
+export const initialLibraryTemplates = () => loadLibraryState().templates
 
 export const initialPersistencePreference = resolveInitialPreference()
 
@@ -75,6 +87,7 @@ export const createPersistenceSlice: StateCreator<EditorStore, [], [], Persisten
     const snapshot = projectSnapshot(state)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
     localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
+    saveLibraryState({ templates: state.libraryTemplates })
 
     const repository = getActivePersistenceRepository()
     void repository
@@ -148,6 +161,57 @@ export const createPersistenceSlice: StateCreator<EditorStore, [], [], Persisten
         set({ persistenceError: `No se pudo guardar el envío en modo ${repository.mode}.` })
       })
 
+    get().persistProject()
+  },
+
+  saveSelectionAsTemplate(name) {
+    set(
+      produce((state: EditorStore) => {
+        const selectionId = state.selectedNodeId
+        if (!selectionId || selectionId === activeRootId(state)) return
+        const serialized = serializeSelectionAsTemplate({
+          selectionId,
+          sourceNodesById: state.nodesById,
+          name,
+        })
+        if (!serialized) return
+        state.libraryTemplates.unshift(serialized)
+      }),
+    )
+    get().persistProject()
+  },
+
+  insertTemplate(templateId, parentId, index) {
+    set(
+      produce((state: EditorStore) => {
+        const template = state.libraryTemplates.find((item) => item.id === templateId)
+        const parent = state.nodesById[parentId]
+        if (!template || !parent) return
+        const templateRoot = template.nodesById[template.rootNodeId]
+        if (!templateRoot) return
+
+        const allowedParents = state.builderConfig.constraints.allowedParents[templateRoot.type]
+        if (allowedParents && !allowedParents.includes(parent.type)) return
+
+        const maxChildren = state.builderConfig.constraints.maxChildren[parent.type]
+        if (typeof maxChildren === 'number' && parent.children.length >= maxChildren) return
+
+        const instance = instantiateTemplateNodes(template)
+        Object.assign(state.nodesById, instance.nodesById)
+
+        if (typeof index === 'number') parent.children.splice(index, 0, instance.rootNodeId)
+        else parent.children.push(instance.rootNodeId)
+      }),
+    )
+    get().persistProject()
+  },
+
+  removeTemplate(templateId) {
+    set(
+      produce((state: EditorStore) => {
+        state.libraryTemplates = state.libraryTemplates.filter((template) => template.id !== templateId)
+      }),
+    )
     get().persistProject()
   },
 })

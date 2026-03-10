@@ -21,6 +21,44 @@ const RADIUS_OPTS   = [
   { label: 'Máximo',  r: '999px' },
 ]
 
+function FontSelect({
+  type,
+  value,
+  options,
+  onSelect,
+}: {
+  type: 'heading' | 'body'
+  value: string
+  options: string[]
+  onSelect: (font: string) => void
+}) {
+  return (
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+      background: 'var(--surface)', overflow: 'hidden',
+    }}>
+      {options.map((font) => (
+        <button key={font} type='button' onClick={() => onSelect(font)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            width: '100%', padding: '9px 12px',
+            background: value === font ? 'var(--primary-dim)' : 'transparent',
+            border: 'none', borderBottom: '1px solid var(--border)',
+            color: value === font ? 'var(--primary)' : 'var(--text)',
+            cursor: 'pointer', textAlign: 'left', transition: 'background 100ms',
+            fontFamily: `'${font}', sans-serif`,
+            fontSize: type === 'heading' ? 15 : 13,
+            fontWeight: type === 'heading' ? 700 : 400,
+          }}
+        >
+          <span>{font}</span>
+          {value === font && <span style={{ fontSize: 12 }}>✓</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /* ─── Sub-panel chevron row ───────────────────────────────── */
 function NavRow({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   const [hov, setHov] = useState(false)
@@ -212,32 +250,6 @@ function TextThemePanel({ onBack }: { onBack: () => void }) {
     )
   }
 
-  const FontSelect = ({ type, value, options }: { type: 'heading' | 'body'; value: string; options: string[] }) => (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-      background: 'var(--surface)', overflow: 'hidden',
-    }}>
-      {options.map((font) => (
-        <button key={font} type='button' onClick={() => applyFont(type, font)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            width: '100%', padding: '9px 12px',
-            background: value === font ? 'var(--primary-dim)' : 'transparent',
-            border: 'none', borderBottom: '1px solid var(--border)',
-            color: value === font ? 'var(--primary)' : 'var(--text)',
-            cursor: 'pointer', textAlign: 'left', transition: 'background 100ms',
-            fontFamily: `'${font}', sans-serif`,
-            fontSize: type === 'heading' ? 15 : 13,
-            fontWeight: type === 'heading' ? 700 : 400,
-          }}
-        >
-          <span>{font}</span>
-          {value === font && <span style={{ fontSize: 12 }}>✓</span>}
-        </button>
-      ))}
-    </div>
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <SubPanelHeader title='Tema de texto' onBack={onBack} />
@@ -257,14 +269,14 @@ function TextThemePanel({ onBack }: { onBack: () => void }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
             Fuente de encabezados
           </div>
-          <FontSelect type='heading' value={headingFont} options={HEADING_FONTS} />
+          <FontSelect type='heading' value={headingFont} options={HEADING_FONTS} onSelect={(font) => applyFont('heading', font)} />
         </div>
 
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
             Fuente de párrafos
           </div>
-          <FontSelect type='body' value={bodyFont} options={BODY_FONTS} />
+          <FontSelect type='body' value={bodyFont} options={BODY_FONTS} onSelect={(font) => applyFont('body', font)} />
         </div>
       </div>
 
