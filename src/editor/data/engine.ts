@@ -1,4 +1,4 @@
-import type { DataSourceDef, DataSourceFetchResult } from './types'
+import type { CollectionField, CollectionMapping, DataSourceDef, DataSourceFetchResult } from './types'
 
 type CacheEntry = {
   value: unknown
@@ -50,6 +50,56 @@ const writeCache = (id: string, data: unknown, ttl: number, useLocalStorageCache
   if (useLocalStorageCache) {
     localStorage.setItem(localKey(id), JSON.stringify(entry))
   }
+}
+
+export const getValueAtPath = (input: unknown, path: string): unknown => {
+  const source = path.trim()
+  if (!source) return input
+  const segments = source.split('.').map((segment) => segment.trim()).filter(Boolean)
+  let current: unknown = input
+  for (const segment of segments) {
+    if (current == null) return undefined
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
+      current = current[Number(segment)]
+      continue
+    }
+    if (typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+export const resolveCollection = (input: unknown, path?: string): unknown[] => {
+  const value = path ? getValueAtPath(input, path) : input
+  return Array.isArray(value) ? value : []
+}
+
+const detectType = (value: unknown): CollectionField['sampleType'] => {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  if (typeof value === 'string') return 'string'
+  if (typeof value === 'number') return 'number'
+  if (typeof value === 'boolean') return 'boolean'
+  if (typeof value === 'object') return 'object'
+  return 'unknown'
+}
+
+export const inferCollectionFields = (items: unknown[]): CollectionField[] => {
+  const samples = items.filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null && !Array.isArray(entry))
+  const keys = new Set<string>()
+  samples.slice(0, 20).forEach((row) => Object.keys(row).forEach((key) => keys.add(key)))
+  return Array.from(keys).map((path) => ({
+    path,
+    sampleType: detectType(samples.find((row) => row[path] !== undefined)?.[path]),
+  }))
+}
+
+export const mapCollectionForOptions = (items: unknown[], mapping: CollectionMapping) => {
+  return items.map((item, index) => ({
+    id: `opt-${index}`,
+    label: String(mapping.labelPath ? getValueAtPath(item, mapping.labelPath) : item ?? ''),
+    value: String(mapping.valuePath ? getValueAtPath(item, mapping.valuePath) : item ?? ''),
+  }))
 }
 
 export const fetchDataSource = async (id: string): Promise<DataSourceFetchResult> => {
