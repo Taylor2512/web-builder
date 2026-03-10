@@ -76,6 +76,25 @@ const activeRootId = (state: EditorProject) => {
   return activePage?.rootId ?? state.rootId
 }
 
+const normalizeSite = (project: EditorProject): EditorProject['site'] => {
+  const pages = (project.site?.pages ?? []).map((page) => ({
+    ...page,
+    path: page.path?.startsWith('/') ? page.path : `/${page.path || page.id}`,
+    meta: page.meta ? { ...page.meta } : undefined,
+  }))
+
+  if (!pages.length) {
+    const fallback = baseTemplate().site
+    return fallback
+  }
+
+  const activePageId = pages.some((page) => page.id === project.site.activePageId)
+    ? project.site.activePageId
+    : pages[0].id
+
+  return { pages, activePageId }
+}
+
 export const projectSnapshot = (state: EditorProject): EditorProject => ({
   projectName: state.projectName,
   rootId: activeRootId(state),
@@ -96,7 +115,7 @@ const initialProjectRaw = safeParse<EditorProject>(localStorage.getItem(STORAGE_
 const initialProject: EditorProject = {
   ...initialProjectRaw,
   flows: initialProjectRaw.flows ?? fallbackTemplate.flows,
-  site: initialProjectRaw.site ?? fallbackTemplate.site,
+  site: normalizeSite(initialProjectRaw),
   rootId: initialProjectRaw.rootId ?? fallbackTemplate.rootId,
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
@@ -203,7 +222,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const ensured = {
       ...payload,
       flows: payload.flows ?? baseTemplate().flows,
-      site: payload.site ?? baseTemplate().site,
+      site: normalizeSite(payload),
     }
     set({ ...ensured, selectedNodeId: null })
     withAutosave(get())

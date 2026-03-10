@@ -16,10 +16,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState, useEffect } from "react";
+import { Link as RouterLink, useInRouterContext } from "react-router-dom";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
   containerTypes,
   sanitizeUrl,
+  type PageDef,
   type Breakpoint,
   type FormField,
   type Node,
@@ -28,6 +30,7 @@ import {
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import PreviewRouter from "../preview/PreviewRouter";
 
 type DragMeta = {
   id: string;
@@ -187,6 +190,38 @@ const TYPE_COLOR: Record<string, string> = {
   repeater: "#f59e0b",
 };
 
+
+function ToolbarButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        background: "rgba(255,255,255,0.15)",
+        border: "none",
+        color: "#fff",
+        cursor: "pointer",
+        padding: "2px 5px",
+        fontSize: 10,
+        lineHeight: 1,
+        borderRadius: 3,
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 /* ── Edit-mode node toolbar ── */
 function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
   const removeNode = useEditorStore((s) => s.removeNode);
@@ -194,19 +229,6 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
   const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
   const accent = TYPE_COLOR[node.type] ?? "#6366f1";
 
-  const ToolBtn = ({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) => (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        background: "rgba(255,255,255,0.15)", border: "none", color: "#fff",
-        cursor: "pointer", padding: "2px 5px", fontSize: 10, lineHeight: 1,
-        borderRadius: 3, display: "flex", alignItems: "center",
-      }}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <div
@@ -249,15 +271,15 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
           background: "rgba(0,0,0,0.75)", borderRadius: "6px 6px 0 0",
           padding: "3px 5px", backdropFilter: "blur(6px)",
         }}>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolBtn>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolBtn>
-          <ToolBtn onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolBtn>
-          <ToolBtn
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolbarButton>
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolbarButton>
+          <ToolbarButton onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolbarButton>
+          <ToolbarButton
             onClick={() => { onDelete(); removeNode(node.id); }}
             title="Eliminar bloque"
           >
             <span style={{ color: "#fca5a5" }}>✕</span>
-          </ToolBtn>
+          </ToolbarButton>
         </div>
       )}
     </div>
@@ -355,10 +377,12 @@ function RenderNode({
   id,
   hoveredDropId,
   dragMeta,
+  pages,
 }: {
   id: string;
   hoveredDropId: string | null;
   dragMeta: DragMeta | null;
+  pages: PageDef[];
 }) {
   const node = useEditorStore((s) => s.nodesById[id]);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
@@ -379,6 +403,7 @@ function RenderNode({
     id: `drop-${id}`,
     disabled: !canDropInside || mode === "preview",
   });
+  const inRouter = useInRouterContext();
 
   if (!node) return null;
 
@@ -393,6 +418,14 @@ function RenderNode({
     mode === "edit" &&
     dragMeta?.source === "canvas";
   const isContainer = containerTypes.includes(node.type);
+
+  const resolvePagePath = (pageId?: string, fallbackPath?: string) => {
+    if (pageId) {
+      const target = pages.find((page) => page.id === pageId);
+      if (target) return target.path;
+    }
+    return fallbackPath || "#";
+  };
 
   /* ── Content per type ── */
   let content: React.ReactNode = null;
@@ -458,6 +491,46 @@ function RenderNode({
       >
         {node.props.label || "Button"}
       </a>
+    );
+  }
+
+  if (node.type === "link") {
+    const targetPath = resolvePagePath(node.props.pageId, node.props.path);
+    content = inRouter && node.props.target === "_self" ? (
+      <RouterLink to={targetPath} style={{ color: "#4f46e5", textDecoration: "underline", fontWeight: 600 }}>
+        {node.props.label || "Link"}
+      </RouterLink>
+    ) : (
+      <a
+        href={sanitizeUrl(targetPath)}
+        target={node.props.target}
+        rel="noreferrer"
+        style={{ color: "#4f46e5", textDecoration: "underline", fontWeight: 600 }}
+      >
+        {node.props.label || "Link"}
+      </a>
+    );
+  }
+
+  if (node.type === "navbar") {
+    content = (
+      <nav style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        {node.props.items.map((item) => {
+          const targetPath = resolvePagePath(item.pageId, item.path);
+          if (inRouter) {
+            return (
+              <RouterLink key={item.id} to={targetPath} style={{ color: "#1f2937", textDecoration: "none", fontWeight: 600 }}>
+                {item.label}
+              </RouterLink>
+            );
+          }
+          return (
+            <a key={item.id} href={sanitizeUrl(targetPath)} style={{ color: "#1f2937", textDecoration: "none", fontWeight: 600 }}>
+              {item.label}
+            </a>
+          );
+        })}
+      </nav>
     );
   }
 
@@ -702,6 +775,7 @@ function RenderNode({
               id={childId}
               hoveredDropId={hoveredDropId}
               dragMeta={dragMeta}
+              pages={pages}
             />
           ))}
         </SortableContext>
@@ -777,6 +851,9 @@ export default function Canvas() {
   const rootId = useEditorStore((s) => s.rootId);
   const mode = useEditorStore((s) => s.mode);
   const nodesById = useEditorStore((s) => s.nodesById);
+  const pages = useEditorStore((s) => s.site.pages);
+  const activePageId = useEditorStore((s) => s.site.activePageId);
+  const selectPage = useEditorStore((s) => s.selectPage);
   const moveNode = useEditorStore((s) => s.moveNode);
   const addNode = useEditorStore((s) => s.addNode);
   const builderConfig = useEditorStore((s) => s.builderConfig);
@@ -951,6 +1028,7 @@ export default function Canvas() {
         id={root.id}
         hoveredDropId={hoveredDropId}
         dragMeta={dragMeta}
+        pages={pages}
       />
     </div>
   );
@@ -965,7 +1043,19 @@ export default function Canvas() {
           background: "#f1f5f9",
         }}
       >
-        {canvasFrame}
+        <PreviewRouter
+          pages={pages}
+          activePageId={activePageId}
+          onRoutePageChange={selectPage}
+          renderPageTree={(pageRootId) => (
+            <RenderNode
+              id={pageRootId}
+              hoveredDropId={null}
+              dragMeta={null}
+              pages={pages}
+            />
+          )}
+        />
       </div>
     );
   }

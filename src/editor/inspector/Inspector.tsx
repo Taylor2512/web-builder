@@ -5,14 +5,13 @@ import {
   Card, ColorInput, DangerButton, Field, GhostButton,
   IconButton, PanelTitle, Separator, Slider, StyledSelect, TextArea, TextInput, Toggle,
 } from '../../shared/ui'
-import type React from 'react'
 
 const fieldTypes: FormFieldType[] = ['text', 'textarea', 'email', 'number', 'password', 'tel', 'url', 'date', 'time', 'datetime-local', 'select', 'radio', 'checkbox', 'switch', 'range', 'file', 'color']
 
 const TYPE_ACCENT: Record<string, string> = {
   page: '#6366f1', section: '#8b5cf6', container: '#06b6d4',
   grid: '#10b981', text: '#f59e0b', image: '#ec4899',
-  button: '#3b82f6', form: '#f97316', spacer: '#94a3b8', divider: '#94a3b8',
+  button: '#3b82f6', link: '#4f46e5', navbar: '#0f766e', form: '#f97316', spacer: '#94a3b8', divider: '#94a3b8',
 }
 
 export default function Inspector() {
@@ -161,6 +160,54 @@ export default function Inspector() {
                       <option value='_self'>Same tab</option>
                       <option value='_blank'>New tab</option>
                     </StyledSelect>
+                  </Field>
+                </div>
+              </Card>
+            )}
+
+
+
+            {node.type === 'link' && (
+              <Card>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <Field label='Label'>
+                    <TextInput value={node.props.label} onChange={(e) => updateProps(node.id, { label: e.target.value })} />
+                  </Field>
+                  <Field label='Path'>
+                    <TextInput value={node.props.path ?? ''} onChange={(e) => updateProps(node.id, { path: e.target.value })} placeholder='/about' />
+                  </Field>
+                  <Field label='Target page ID (optional)'>
+                    <TextInput value={node.props.pageId ?? ''} onChange={(e) => updateProps(node.id, { pageId: e.target.value || undefined })} placeholder='page-home' />
+                  </Field>
+                  <Field label='Open in'>
+                    <StyledSelect value={node.props.target ?? '_self'} onChange={(e) => updateProps(node.id, { target: e.target.value })}>
+                      <option value='_self'>Same tab</option>
+                      <option value='_blank'>New tab</option>
+                    </StyledSelect>
+                  </Field>
+                </div>
+              </Card>
+            )}
+
+            {node.type === 'navbar' && (
+              <Card>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <Field label='Items (label|pageId|path per line)'>
+                    <TextArea
+                      value={node.props.items.map((item) => `${item.label}|${item.pageId ?? ''}|${item.path ?? ''}`).join('\n')}
+                      onChange={(e) => {
+                        const items = e.target.value
+                          .split('\n')
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                          .map((line, index) => {
+                            const [label, pageId, path] = line.split('|')
+                            return { id: node.props.items[index]?.id ?? createId(), label: label?.trim() || `Item ${index + 1}`, pageId: pageId?.trim() || undefined, path: path?.trim() || undefined }
+                          })
+                        updateProps(node.id, { items })
+                      }}
+                      placeholder={'Home|page-home|/\nAbout||/about'}
+                    />
                   </Field>
                 </div>
               </Card>

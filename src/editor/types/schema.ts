@@ -50,6 +50,8 @@ export type NodeType =
   | 'searchSelect'
   | 'dataTable'
   | 'searchBar'
+  | 'link'
+  | 'navbar'
   | 'repeater'
 
 export type StyleValue = string | number | undefined
@@ -149,6 +151,15 @@ export type NodePropsByType = {
     mode: 'localFilter' | 'navigate'
     targetQueryKey: string
   }
+  link: {
+    label: string
+    pageId?: string
+    path?: string
+    target: '_self' | '_blank'
+  }
+  navbar: {
+    items: { id: string; label: string; pageId?: string; path?: string }[]
+  }
   repeater: {
     dataSourceId?: string
     dataPath: string
@@ -238,6 +249,16 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
     buttonText: 'Search',
     mode: 'navigate',
     targetQueryKey: 'q',
+  },
+  link: {
+    label: 'Go to page',
+    target: '_self',
+  },
+  navbar: {
+    items: [
+      { id: createId(), label: 'Home', path: '/' },
+      { id: createId(), label: 'About', path: '/about' },
+    ],
   },
   repeater: {
     dataPath: 'items',
