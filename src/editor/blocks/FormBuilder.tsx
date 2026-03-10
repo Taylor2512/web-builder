@@ -3,15 +3,20 @@ import BlocksPanel from './BlocksPanel'
 import Canvas from '../canvas/Canvas'
 import Inspector from '../inspector/Inspector'
 import { useEditorStore } from '../state/useEditorStore'
-import { GhostButton, TextInput } from '../../shared/ui'
+import { GhostButton, PrimaryButton } from '../../shared/ui'
 import { loadBuilderConfig } from '../config/loadBuilderConfig'
 import FlowStudio from '../flows/FlowStudio'
+import { loadRemoteProject, saveRemoteProject } from '../api/jsonServer'
+import { projectSnapshot } from '../state/useEditorStore'
+
+const BP_ICONS: Record<string, string> = { desktop: '🖥', tablet: '⬜', mobile: '📱' }
 
 export default function FormBuilder() {
   const mode = useEditorStore((s) => s.mode)
   const setMode = useEditorStore((s) => s.setMode)
   const projectName = useEditorStore((s) => s.projectName)
   const setProjectName = useEditorStore((s) => s.setProjectName)
+  const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
   const setBreakpoint = useEditorStore((s) => s.setBreakpoint)
   const serialize = useEditorStore((s) => s.serialize)
   const hydrate = useEditorStore((s) => s.hydrate)
@@ -22,10 +27,17 @@ export default function FormBuilder() {
   const activePageId = useEditorStore((s) => s.site.activePageId)
   const addPage = useEditorStore((s) => s.addPage)
   const selectPage = useEditorStore((s) => s.selectPage)
-  const updatePage = useEditorStore((s) => s.updatePage)
   const removePage = useEditorStore((s) => s.removePage)
+  const selectedNodeId = useEditorStore((s) => s.selectedNodeId)
+  const removeNode = useEditorStore((s) => s.removeNode)
+  const nodesById = useEditorStore((s) => s.nodesById)
+  const flows = useEditorStore((s) => s.flows)
+  const site = useEditorStore((s) => s.site)
+  const rootId = useEditorStore((s) => s.rootId)
   const fileRef = useRef<HTMLInputElement>(null)
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
+  const [editingName, setEditingName] = useState(false)
 
   useEffect(() => {
     loadBuilderConfig().then((config) => {
@@ -36,56 +48,234 @@ export default function FormBuilder() {
     })
   }, [setBuilderConfig])
 
-  const activePage = pages.find((page) => page.id === activePageId)
+  useEffect(() => {
+    let cancelled = false
+    const hydrateFromRemote = async () => {
+      try {
+        const project = await loadRemoteProject()
+        if (!cancelled && project?.data) {
+          hydrate(JSON.stringify(project.data))
+          setSyncStatus('ok')
+        }
+      } catch {
+        if (!cancelled) setSyncStatus('error')
+      }
+    }
+    void hydrateFromRemote()
+    return () => { cancelled = true }
+  }, [hydrate])
+
+  useEffect(() => {
+    const timer = window.setTimeout(async () => {
+      const snapshot = projectSnapshot({ projectName, rootId, nodesById, mode, flows, site })
+      setSyncStatus('syncing')
+      try {
+        await saveRemoteProject(snapshot, projectName)
+        setSyncStatus('ok')
+      } catch {
+        setSyncStatus('error')
+      }
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [projectName, rootId, nodesById, mode, flows, site])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (mode !== 'edit' || !selectedNodeId) return
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      const target = event.target as HTMLElement | null
+      const editable = target?.closest('input,textarea,[contenteditable="true"]')
+      if (editable) return
+      const node = nodesById[selectedNodeId]
+      if (!node || node.type === 'page') return
+      event.preventDefault()
+      removeNode(selectedNodeId)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mode, nodesById, removeNode, selectedNodeId])
+
+  const activePage = pages.find((p) => p.id === activePageId)
+
+  const syncDot = {
+    idle:    { color: '#64748b', label: 'Saved' },
+    syncing: { color: '#f59e0b', label: 'Saving…' },
+    ok:      { color: '#22c55e', label: 'Saved' },
+    error:   { color: '#ef4444', label: 'Error' },
+  }[syncStatus]
+
+  const handleExport = () => {
+    const blob = new Blob([serialize()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${projectName || 'project'}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
-    <div style={styles.shell}>
-      <header style={styles.topbar}>
-        <TextInput value={projectName} onChange={(e) => setProjectName(e.target.value)} style={{ minWidth: 220 }} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <GhostButton onClick={() => setWorkspace('pages')} style={{ background: workspace === 'pages' ? 'var(--surface-2)' : undefined }}>Pages</GhostButton>
-          <GhostButton onClick={() => setWorkspace('flows')} style={{ background: workspace === 'flows' ? 'var(--surface-2)' : undefined }}>Flows</GhostButton>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── Topbar ── */}
+      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
+        {/* Left: logo + project name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, flexShrink: 0,
+          }}>✦</div>
+
+          {editingName ? (
+            <input
+              autoFocus
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              onBlur={() => setEditingName(false)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditingName(false)}
+              style={{
+                background: 'var(--surface-2)', border: '1px solid var(--primary)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '4px 8px',
+                fontSize: 13, fontWeight: 600, outline: 'none', width: 180,
+              }}
+            />
+          ) : (
+            <button
+              type='button'
+              onClick={() => setEditingName(true)}
+              title='Click to rename project'
+              style={{
+                background: 'none', border: 'none', color: 'var(--text)',
+                fontWeight: 600, fontSize: 13, cursor: 'text', padding: '4px 6px',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              {projectName || 'Untitled Project'}
+            </button>
+          )}
+
+          {/* Sync dot */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: syncDot.color }} />
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{syncDot.label}</span>
+          </div>
+        </div>
+
+        {/* Center: workspace + page tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* Workspace tabs */}
+          {(['pages', 'flows'] as const).map((ws) => (
+            <button
+              key={ws}
+              type='button'
+              onClick={() => setWorkspace(ws)}
+              style={{
+                padding: '5px 12px', borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${workspace === ws ? 'var(--primary)' : 'var(--border)'}`,
+                background: workspace === ws ? 'var(--primary-dim)' : 'transparent',
+                color: workspace === ws ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: workspace === ws ? 700 : 500, fontSize: 12, cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
+              {ws === 'pages' ? '⬜ Pages' : '⟶ Flows'}
+            </button>
+          ))}
 
           {workspace === 'pages' && (
             <>
-              <select value={activePageId} onChange={(e) => selectPage(e.target.value)}>
-                {pages.map((page) => <option key={page.id} value={page.id}>{page.name} ({page.path})</option>)}
+              <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
+              {/* Page selector */}
+              <select
+                value={activePageId}
+                onChange={(e) => selectPage(e.target.value)}
+                style={{
+                  padding: '5px 28px 5px 10px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-2)', background: 'rgba(0,0,0,0.3)',
+                  color: 'var(--text)', fontSize: 12, cursor: 'pointer', outline: 'none',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b949e'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
+                }}
+              >
+                {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <GhostButton onClick={() => addPage(`Page ${pages.length + 1}`, `/page-${pages.length + 1}`)}>+ Add Page</GhostButton>
-              {activePage && (
-                <>
-                  <TextInput value={activePage.name} onChange={(e) => updatePage(activePage.id, { name: e.target.value })} style={{ width: 120 }} />
-                  <TextInput value={activePage.path} onChange={(e) => updatePage(activePage.id, { path: e.target.value })} style={{ width: 120 }} />
-                  <GhostButton onClick={() => removePage(activePage.id)} disabled={pages.length <= 1}>Delete Page</GhostButton>
-                </>
+              <GhostButton onClick={() => addPage(`Page ${pages.length + 1}`, `/page-${pages.length + 1}`)} style={{ fontSize: 11 }}>+ Page</GhostButton>
+              {activePage && pages.length > 1 && (
+                <GhostButton onClick={() => removePage(activePage.id)} style={{ fontSize: 11, color: 'var(--danger)' }}>✕</GhostButton>
               )}
             </>
           )}
+        </div>
 
-          <GhostButton onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')} disabled={workspace === 'flows'}>{mode === 'edit' ? 'Preview' : 'Edit'}</GhostButton>
-          <GhostButton onClick={() => setBreakpoint('desktop')}>Desktop ({builderConfig.breakpoints.desktop.width}px)</GhostButton>
-          <GhostButton onClick={() => setBreakpoint('tablet')}>Tablet ({builderConfig.breakpoints.tablet.width}px)</GhostButton>
-          <GhostButton onClick={() => setBreakpoint('mobile')}>Mobile ({builderConfig.breakpoints.mobile.width}px)</GhostButton>
-          <GhostButton onClick={() => {
-            const blob = new Blob([serialize()], { type: 'application/json' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = 'web-builder-project.json'
-            a.click()
-            URL.revokeObjectURL(url)
-          }}>Export JSON</GhostButton>
-          <GhostButton onClick={() => fileRef.current?.click()}>Import JSON</GhostButton>
-          <GhostButton onClick={reset}>Reset</GhostButton>
+        {/* Right: breakpoints + preview + io */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {/* Breakpoints */}
+          {workspace === 'pages' && (
+            <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
+              {(['desktop', 'tablet', 'mobile'] as const).map((bp) => {
+                const bpConfig = builderConfig.breakpoints[bp]
+                const active = activeBreakpoint === bp
+                return (
+                  <button
+                    key={bp}
+                    type='button'
+                    onClick={() => setBreakpoint(bp)}
+                    title={`${bp} (${bpConfig.width}px)`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '4px 8px', borderRadius: 6, border: 'none',
+                      background: active ? 'var(--primary)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: active ? 700 : 500, fontSize: 11, cursor: 'pointer',
+                    }}
+                  >
+                    <span>{BP_ICONS[bp]}</span>
+                    <span style={{ display: active ? 'inline' : 'none' }}>{bpConfig.width}px</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+
+          {/* Preview */}
+          {workspace === 'pages' && (
+            <PrimaryButton
+              onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}
+              style={{ background: mode === 'preview' ? '#22c55e' : undefined, fontSize: 11 }}
+            >
+              {mode === 'edit' ? '▶ Preview' : '✎ Edit'}
+            </PrimaryButton>
+          )}
+
+          {/* Import / Export */}
+          <GhostButton onClick={handleExport} title='Export design as JSON' style={{ fontSize: 11 }}>↑ Export</GhostButton>
+          <GhostButton onClick={() => fileRef.current?.click()} title='Import JSON' style={{ fontSize: 11 }}>↓ Import</GhostButton>
+          <button
+            type='button'
+            onClick={() => { if (confirm('Reset all content? This cannot be undone.')) reset() }}
+            title='Reset project'
+            style={{
+              padding: '5px 8px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--danger)', cursor: 'pointer', fontSize: 11,
+            }}
+          >
+            ↺
+          </button>
         </div>
       </header>
 
-      <div style={styles.main}>
+      {/* ── Main content ── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '240px 1fr 300px', minHeight: 0, overflow: 'hidden' }}>
         {workspace === 'pages' ? (
           <>
-            <aside style={styles.left}><BlocksPanel /></aside>
-            <section style={styles.center}><Canvas /></section>
-            <aside style={styles.right}><Inspector /></aside>
+            <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}><BlocksPanel /></aside>
+            <section style={{ overflow: 'hidden' }}><Canvas /></section>
+            <aside style={{ borderLeft: '1px solid var(--border)', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}><Inspector /></aside>
           </>
         ) : (
           <section style={{ gridColumn: '1 / -1', overflow: 'auto' }}><FlowStudio /></section>
@@ -100,19 +290,10 @@ export default function FormBuilder() {
         onChange={async (e) => {
           const file = e.target.files?.[0]
           if (!file) return
-          const text = await file.text()
-          hydrate(text)
+          hydrate(await file.text())
+          e.target.value = ''
         }}
       />
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  shell: { height: '100vh', display: 'flex', flexDirection: 'column' },
-  topbar: { minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--panel)' },
-  main: { flex: 1, display: 'grid', gridTemplateColumns: '300px 1fr 360px', minHeight: 0 },
-  left: { borderRight: '1px solid var(--border)', background: 'var(--panel)', overflow: 'auto' },
-  center: { overflow: 'auto' },
-  right: { borderLeft: '1px solid var(--border)', background: 'var(--panel)', overflow: 'auto' },
 }

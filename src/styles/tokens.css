@@ -1,34 +1,77 @@
 :root {
-  --bg: #0b0f14;
-  --panel: #0f172a;
-  --surface: rgba(255, 255, 255, 0.04);
-  --surface-2: rgba(255, 255, 255, 0.07);
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --border: rgba(255, 255, 255, 0.1);
-  --primary: #7c3aed;
+  /* ── Base backgrounds ── */
+  --bg:         #0d1117;
+  --panel:      #111820;
+  --panel-alt:  #161e2a;
 
-  --radius: 14px;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  /* ── Surfaces (overlays) ── */
+  --surface:       rgba(255,255,255,0.035);
+  --surface-2:     rgba(255,255,255,0.07);
+  --surface-3:     rgba(255,255,255,0.13);
+  --surface-hover: rgba(255,255,255,0.055);
 
-  --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  /* ── Text ── */
+  --text:           #e6edf3;
+  --text-secondary: #8b949e;
+  --muted:          #5d6b7a;
+
+  /* ── Borders ── */
+  --border:   rgba(255,255,255,0.08);
+  --border-2: rgba(255,255,255,0.14);
+
+  /* ── Primary (Indigo) ── */
+  --primary:      #6366f1;
+  --primary-dim:  rgba(99,102,241,0.14);
+  --primary-glow: rgba(99,102,241,0.4);
+  --primary-dark: #4f46e5;
+
+  /* ── Accent (Cyan) ── */
+  --accent:     #22d3ee;
+  --accent-dim: rgba(34,211,238,0.12);
+
+  /* ── Status ── */
+  --success:     #22c55e;
+  --success-dim: rgba(34,197,94,0.12);
+  --warning:     #f59e0b;
+  --warning-dim: rgba(245,158,11,0.12);
+  --danger:      #f43f5e;
+  --danger-dim:  rgba(244,63,94,0.12);
+
+  /* ── Radii ── */
+  --radius-xs: 4px;
+  --radius-sm: 7px;
+  --radius:    10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.45);
+  --shadow:    0 4px 14px rgba(0,0,0,0.52);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.65);
+  --shadow-glow: 0 0 0 3px var(--primary-glow);
+
+  /* ── Typography ── */
+  --font:      'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+
+  /* ── Motion ── */
+  --transition: 150ms ease;
+  --transition-slow: 250ms ease;
 }
 
 body {
   background: var(--bg);
-  color: #e6eef8;
-  font-family: var(--font-sans);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
 
-.btn {
-  background: var(--surface);
-  color: #e6eef8;
-  border: 1px solid transparent;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  cursor: pointer;
-}
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
-.btn:hover {
-  border-color: var(--accent);
-}
+/* transitions on interactive elements */
+button, input, select, textarea { transition: border-color var(--transition), box-shadow var(--transition), background var(--transition); }

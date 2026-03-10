@@ -15,6 +15,7 @@ import {
 } from '../types/schema'
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
+import { saveRemoteSubmission } from '../api/jsonServer'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
@@ -50,6 +51,8 @@ type EditorState = EditorProject & {
   selectPage: (pageId: string) => void
   updatePage: (pageId: string, patch: Partial<Pick<PageDef, 'name' | 'path' | 'title'>>) => void
   removePage: (pageId: string) => void
+  duplicateNode: (id: NodeId) => void
+  moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -73,15 +76,17 @@ const activeRootId = (state: EditorProject) => {
   return activePage?.rootId ?? state.rootId
 }
 
+export const projectSnapshot = (state: EditorProject): EditorProject => ({
+  projectName: state.projectName,
+  rootId: activeRootId(state),
+  nodesById: state.nodesById,
+  mode: state.mode,
+  flows: state.flows,
+  site: state.site,
+})
+
 const withAutosave = (state: EditorState) => {
-  const payload: EditorProject = {
-    projectName: state.projectName,
-    rootId: activeRootId(state),
-    nodesById: state.nodesById,
-    mode: state.mode,
-    flows: state.flows,
-    site: state.site,
-  }
+  const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
 }
@@ -190,18 +195,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   serialize() {
     const state = get()
-    return JSON.stringify(
-      {
-        projectName: state.projectName,
-        rootId: activeRootId(state),
-        nodesById: state.nodesById,
-        mode: state.mode,
-        flows: state.flows,
-        site: state.site,
-      },
-      null,
-      2,
-    )
+    return JSON.stringify(projectSnapshot(state), null, 2)
   },
 
   hydrate(json) {
@@ -356,6 +350,50 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+  duplicateNode(id) {
+    set(
+      produce((state: EditorState) => {
+        if (id === activeRootId(state)) return
+        const cloneDeep = (nodeId: string): string => {
+          const node = state.nodesById[nodeId]
+          if (!node) return nodeId
+          const newId = createId()
+          const cloned = {
+            ...structuredClone(node),
+            id: newId,
+            children: node.children.map(cloneDeep),
+          }
+          state.nodesById[newId] = cloned as Node
+          return newId
+        }
+        const newNodeId = cloneDeep(id)
+        const parent = Object.values(state.nodesById).find((n) => n.children.includes(id))
+        if (parent) {
+          const idx = parent.children.indexOf(id)
+          parent.children.splice(idx + 1, 0, newNodeId)
+        }
+        state.selectedNodeId = newNodeId
+      }),
+    )
+    withAutosave(get())
+  },
+
+  moveNodeSibling(id, direction) {
+    set(
+      produce((state: EditorState) => {
+        const parent = Object.values(state.nodesById).find((n) => n.children.includes(id))
+        if (!parent) return
+        const idx = parent.children.indexOf(id)
+        if (direction === 'up' && idx > 0) {
+          ;[parent.children[idx - 1], parent.children[idx]] = [parent.children[idx], parent.children[idx - 1]]
+        } else if (direction === 'down' && idx < parent.children.length - 1) {
+          ;[parent.children[idx + 1], parent.children[idx]] = [parent.children[idx], parent.children[idx + 1]]
+        }
+      }),
+    )
+    withAutosave(get())
+  },
+
   submitForm(formId, value) {
     set(
       produce((state: EditorState) => {
@@ -364,6 +402,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.submissions[key] = [...current, value]
       }),
     )
+    const state = get()
+    void saveRemoteSubmission({
+      pageId: state.site.activePageId,
+      formId,
+      payload: value,
+      createdAt: new Date().toISOString(),
+    }).catch(() => {
+      // keep local submission even if json-server is down
+    })
     withAutosave(get())
   },
 }))
