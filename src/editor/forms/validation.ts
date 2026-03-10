@@ -1,22 +1,11 @@
-import type { FormField } from "../types/schema.ts";
+import type { FormField } from '../types/schema'
+import { parseFieldValue, validateFieldValue } from './validators'
 
-export const validateField = (
-  field: FormField,
-  raw: FormDataEntryValue | null,
-): string | null => {
-  const value = typeof raw === "string" ? raw : "";
-  if (field.required && !value) return `${field.label} is required`;
-  if (field.type === "email" && value && !/^\S+@\S+\.\S+$/.test(value)) {
-    return `${field.label} must be an email`;
+export const validateField = (field: FormField, raw: FormDataEntryValue | null): string | null => {
+  const formData = new FormData()
+  if (raw != null) {
+    formData.set(field.name, raw)
   }
-  if (field.minLength && value.length < field.minLength) {
-    return `${field.label} min length ${field.minLength}`;
-  }
-  if (field.maxLength && value.length > field.maxLength) {
-    return `${field.label} max length ${field.maxLength}`;
-  }
-  if (field.pattern && value && !new RegExp(field.pattern).test(value)) {
-    return `${field.label} invalid format`;
-  }
-  return null;
-};
+  const parsedValue = parseFieldValue(field, formData)
+  return validateFieldValue(field, parsedValue)
+}
