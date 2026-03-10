@@ -198,6 +198,7 @@ export type EditorProject = {
     rightPanelOpen: boolean
     leftPanelWidth: number
     rightPanelWidth: number
+    focusMode: boolean
   }
 }
 
@@ -331,6 +332,7 @@ export const baseTemplate = (): EditorProject => {
       rightPanelOpen: true,
       leftPanelWidth: 240,
       rightPanelWidth: 300,
+      focusMode: false,
     },
   }
 }

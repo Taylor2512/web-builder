@@ -67,6 +67,8 @@ export type UIActions = {
   togglePanels: () => void
   setLeftPanelWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
+  toggleFocusMode: () => void
+  setFocusMode: (active: boolean) => void
 }
 
 export type EditorStore = EditorProject & {

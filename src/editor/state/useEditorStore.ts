@@ -43,6 +43,8 @@ type EditorState = EditorProject & {
   togglePanels: () => void
   setLeftPanelWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
+  toggleFocusMode: () => void
+  setFocusMode: (active: boolean) => void
   setProjectName: (name: string) => void
   serialize: () => string
   hydrate: (json: string) => void
@@ -113,6 +115,7 @@ const normalizeUi = (project: EditorProject): EditorProject['ui'] => {
     rightPanelOpen: project.ui?.rightPanelOpen ?? fallback.rightPanelOpen,
     leftPanelWidth: clampPanelWidth(project.ui?.leftPanelWidth ?? fallback.leftPanelWidth),
     rightPanelWidth: clampPanelWidth(project.ui?.rightPanelWidth ?? fallback.rightPanelWidth),
+    focusMode: project.ui?.focusMode ?? fallback.focusMode,
   }
 }
 
@@ -288,6 +291,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setRightPanelWidth(width) {
     set((state) => ({ ui: { ...state.ui, rightPanelWidth: clampPanelWidth(width) } }))
+    withAutosave(get())
+  },
+
+  toggleFocusMode() {
+    set((state) => ({ ui: { ...state.ui, focusMode: !state.ui.focusMode } }))
+    withAutosave(get())
+  },
+
+  setFocusMode(focusMode) {
+    set((state) => ({ ui: { ...state.ui, focusMode } }))
     withAutosave(get())
   },
 
