@@ -35,7 +35,7 @@ export const dividerRenderer: NodeRenderer = ({ node }) => {
   return { content: <hr style={{ border: 'none', borderTop: `${props.thickness}px solid #e2e8f0`, margin: '4px 0' }} /> }
 }
 
-export const formRenderer: NodeRenderer = ({ node, mode }) => {
+export const formRenderer: NodeRenderer = ({ node, mode, submitForm }) => {
   const props = node.props as any
   if (mode === 'preview') {
     return {
@@ -47,6 +47,8 @@ export const formRenderer: NodeRenderer = ({ node, mode }) => {
             const validation = validateField(field, formData.get(field.name))
             if (validation) return window.alert(validation)
           }
+          const payload = Object.fromEntries(formData.entries())
+          submitForm(node.id, payload)
         }}>
           {props.fields.map((field: any) => <label key={field.id}>{field.label}<input name={field.name} /></label>)}
           <button type='submit'>{props.submitText}</button>

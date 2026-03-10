@@ -234,6 +234,7 @@ function RenderNode({
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
   const updateProps = useEditorStore((s) => s.updateProps);
+  const submitForm = useEditorStore((s) => s.submitForm);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
     setNodeRef: setSortableRef,
@@ -282,6 +283,7 @@ function RenderNode({
     mode,
     renderChildren,
     updateProps,
+    submitForm,
   });
   const content = rendered.content;
 
