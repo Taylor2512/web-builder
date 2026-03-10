@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { buildNode, useEditorStore } from '../state/useEditorStore'
 import { containerTypes, type NodeType } from '../types/schema'
 import { PanelTitle, Separator } from '../../shared/ui'
+import type { LibraryTemplate } from '../library'
 
 type CategoryKey = 'estructura' | 'contenido' | 'formularios' | 'extras'
 type LayerVisibilityFilter = 'all' | 'visible' | 'hidden'
@@ -183,6 +184,95 @@ function BlockTile({ type, allowed, onAdd }: { type: NodeType; allowed: boolean;
   )
 }
 
+function LibraryTemplateTile({
+  template,
+  allowed,
+  onInsert,
+  onDelete,
+}: {
+  template: LibraryTemplate
+  allowed: boolean
+  onInsert: () => void
+  onDelete: () => void
+}) {
+  const [hov, setHov] = useState(false)
+  const rootType = template.nodesById[template.rootNodeId]?.type ?? 'template'
+  const nodeCount = Object.keys(template.nodesById).length
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `library-${template.id}`,
+    data: { templateId: template.id, source: 'library' },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'grid',
+        gap: 8,
+        padding: 10,
+        borderRadius: 'var(--radius-sm)',
+        border: `1px solid ${hov ? 'var(--primary)' : 'var(--border)'}`,
+        background: hov ? 'var(--primary-dim)' : 'var(--surface)',
+        opacity: isDragging ? 0.4 : 1,
+        transform: CSS.Translate.toString(transform),
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <strong style={{ fontSize: 12 }}>{template.name}</strong>
+        <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>{rootType}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{nodeCount} nodes</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type='button'
+            disabled={!allowed}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (allowed) onInsert()
+            }}
+            style={{
+              border: '1px solid var(--primary)',
+              background: 'var(--primary-dim)',
+              color: 'var(--primary)',
+              borderRadius: 999,
+              fontSize: 11,
+              padding: '3px 9px',
+              cursor: allowed ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Insertar
+          </button>
+          <button
+            type='button'
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+            style={{
+              border: '1px solid rgba(244,63,94,0.45)',
+              background: 'rgba(244,63,94,0.12)',
+              color: 'var(--danger)',
+              borderRadius: 999,
+              fontSize: 11,
+              padding: '3px 9px',
+              cursor: 'pointer',
+            }}
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Collapsible section ── */
 function CategorySection({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true)
@@ -315,8 +405,8 @@ function LayerItem({ id, depth, nodesById, selectedId, onSelect, onToggleVisibil
 }
 
 /* ── Main panel ── */
-export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'blocks' | 'layers' }) {
-  const [tab, setTab] = useState<'blocks' | 'layers'>(defaultTab)
+export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'blocks' | 'layers' | 'library' }) {
+  const [tab, setTab] = useState<'blocks' | 'layers' | 'library'>(defaultTab)
   const [blockSearch, setBlockSearch] = useState('')
   const [layerSearch, setLayerSearch] = useState('')
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibilityFilter>('all')
@@ -329,6 +419,10 @@ export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'b
   const showAllNodes = useEditorStore((s) => s.showAllNodes)
   const enabledBlocks = useEditorStore((s) => s.builderConfig.blocks.enabled)
   const constraints = useEditorStore((s) => s.builderConfig.constraints)
+  const libraryTemplates = useEditorStore((s) => s.libraryTemplates)
+  const saveSelectionAsTemplate = useEditorStore((s) => s.saveSelectionAsTemplate)
+  const insertTemplate = useEditorStore((s) => s.insertTemplate)
+  const removeTemplate = useEditorStore((s) => s.removeTemplate)
 
   const hiddenNodesCount = useMemo(
     () => Object.values(nodesById).filter((node) => node.isHidden).length,
@@ -362,8 +456,30 @@ export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'b
     return true
   }
 
+  const hasChildCapacity = (targetParentId: string) => {
+    const parent = nodesById[targetParentId]
+    if (!parent) return false
+    const max = constraints.maxChildren[parent.type]
+    return typeof max !== 'number' || parent.children.length < max
+  }
+
   const addBlock = (type: NodeType) => {
     addNode(parentId ?? rootId, buildNode(type))
+  }
+
+  const addTemplate = () => {
+    const name = window.prompt('Nombre del template', '')
+    if (name === null) return
+    saveSelectionAsTemplate(name)
+  }
+
+  const canInsertTemplate = (template: LibraryTemplate) => {
+    const parent = nodesById[parentId]
+    const templateRoot = template.nodesById[template.rootNodeId]
+    if (!parent || !templateRoot) return false
+    const allowed = constraints.allowedParents[templateRoot.type]
+    if (allowed && !allowed.includes(parent.type)) return false
+    return hasChildCapacity(parentId)
   }
 
   const sections = useMemo(() =>
@@ -388,7 +504,7 @@ export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'b
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Tab bar */}
       <div style={{ padding: '10px 12px 0', display: 'flex', gap: 2, borderBottom: '1px solid var(--border)' }}>
-        {(['blocks', 'layers'] as const).map((t) => (
+        {(['blocks', 'library', 'layers'] as const).map((t) => (
           <button
             key={t}
             type='button'
@@ -402,7 +518,7 @@ export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'b
               marginBottom: -1,
             }}
           >
-            {t === 'blocks' ? 'Components' : 'Layers'}
+            {t === 'blocks' ? 'Components' : t === 'library' ? 'Library' : 'Layers'}
           </button>
         ))}
       </div>
@@ -447,6 +563,49 @@ export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'b
             })}
             {sections.every((s) => !s.types.length) && (
               <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, padding: 20 }}>No blocks match</div>
+            )}
+          </div>
+        )}
+
+        {tab === 'library' && (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <button
+              type='button'
+              onClick={addTemplate}
+              disabled={!selectedNodeId || selectedNodeId === rootId}
+              style={{
+                border: '1px solid var(--primary)',
+                background: 'var(--primary-dim)',
+                color: 'var(--primary)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '7px 10px',
+                cursor: !selectedNodeId || selectedNodeId === rootId ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Guardar selección como template
+            </button>
+            {!selectedNodeId || selectedNodeId === rootId ? (
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                Selecciona un nodo (no root) para guardarlo en librería.
+              </div>
+            ) : null}
+            <div style={{ display: 'grid', gap: 8 }}>
+              {libraryTemplates.map((template) => (
+                <LibraryTemplateTile
+                  key={template.id}
+                  template={template}
+                  allowed={canInsertTemplate(template)}
+                  onInsert={() => insertTemplate(template.id, parentId)}
+                  onDelete={() => removeTemplate(template.id)}
+                />
+              ))}
+            </div>
+            {!libraryTemplates.length && (
+              <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, padding: 20 }}>
+                No hay templates guardados.
+              </div>
             )}
           </div>
         )}

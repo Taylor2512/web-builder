@@ -40,7 +40,8 @@ import { mapCollectionForOptions, resolveCollection } from "../data/engine";
 type DragMeta = {
   id: string;
   blockType?: Node["type"];
-  source: "palette" | "canvas";
+  templateId?: string;
+  source: "palette" | "library" | "canvas";
 };
 
 type BindingIssue = BindingError & { nodeId: string; prop: string };
@@ -1009,6 +1010,8 @@ export default function Canvas() {
   const selectPage = useEditorStore((s) => s.selectPage);
   const moveNode = useEditorStore((s) => s.moveNode);
   const addNode = useEditorStore((s) => s.addNode);
+  const insertTemplate = useEditorStore((s) => s.insertTemplate);
+  const libraryTemplates = useEditorStore((s) => s.libraryTemplates);
   const builderConfig = useEditorStore((s) => s.builderConfig);
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
   const submissions = useEditorStore((s) => s.submissions);
@@ -1153,6 +1156,19 @@ export default function Canvas() {
       }
     }
 
+    if (dragMeta.source === "library" && dragMeta.templateId) {
+      const dropIndex = resolveDropIndex(overId, parentId);
+      const template = libraryTemplates.find((item) => item.id === dragMeta.templateId);
+      const templateRoot = template ? template.nodesById[template.rootNodeId] : null;
+      const allowed = templateRoot
+        ? isAllowedParent(templateRoot.type, parentNode.type)
+        : false;
+
+      if (allowed && hasChildCapacity(parentId)) {
+        insertTemplate(dragMeta.templateId, parentId, dropIndex);
+      }
+    }
+
     if (dragMeta.source === "canvas") {
       if (dragMeta.id === parentId || isDescendant(dragMeta.id, parentId)) {
         setDragMeta(null);
@@ -1189,6 +1205,7 @@ export default function Canvas() {
   const dragLabel = useMemo(() => {
     if (!dragMeta) return "";
     if (dragMeta.source === "palette") return `+ ${dragMeta.blockType}`;
+    if (dragMeta.source === "library") return "+ template";
     return nodesById[dragMeta.id]?.type ?? "block";
   }, [dragMeta, nodesById]);
 

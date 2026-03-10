@@ -133,7 +133,8 @@ export default function FormBuilder() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, setFocusMode, setActiveLeftPanel, toggleRightPanel, ui])
+  }, [mode, nodesById, removeNode, selectedNodeId,  , toggleFocusMode, ui.activeLeftPanel])
+  }, [mode, nodesById, removeNode,  selectedNodeId, toggleFocusMode, setFocusMode, setActiveLeftPanel, toggleRightPanel, ui])
 
   useEffect(() => {
     if (ui.focusMode) {

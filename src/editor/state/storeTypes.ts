@@ -1,6 +1,7 @@
 import type { BuilderConfig } from '../config/loadBuilderConfig'
 import type { PersistenceMode, PersistencePreference } from '../persistence'
 import type { FlowVariable } from '../flows/types/schema'
+import type { LibraryTemplate } from '../library'
 import type {
   Breakpoint,
   EditorPanelId,
@@ -60,6 +61,9 @@ export type PersistenceActions = {
   setBuilderConfig: (config: BuilderConfig) => void
   persistProject: () => void
   setPersistencePreference: (preference: PersistencePreference) => Promise<void>
+  saveSelectionAsTemplate: (name: string) => void
+  insertTemplate: (templateId: string, parentId: NodeId, index?: number) => void
+  removeTemplate: (templateId: string) => void
   undo: () => void
   redo: () => void
   createPublishSnapshot: (label?: string) => void
@@ -97,6 +101,7 @@ export type EditorStore = EditorProject & {
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
   builderConfig: BuilderConfig
+  libraryTemplates: LibraryTemplate[]
   persistenceMode: PersistenceMode
   persistencePreference: PersistencePreference
   persistenceError: string | null
