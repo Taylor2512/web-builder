@@ -68,6 +68,13 @@ const removeDeep = (nodesById: NodesById, id: NodeId) => {
   delete nodesById[id]
 }
 
+const isDescendant = (nodesById: NodesById, ancestorId: NodeId, targetId: NodeId): boolean => {
+  const ancestor = nodesById[ancestorId]
+  if (!ancestor) return false
+  if (ancestor.children.includes(targetId)) return true
+  return ancestor.children.some((childId) => isDescendant(nodesById, childId, targetId))
+}
+
 const activeRootId = (state: EditorProject) => {
   const activePage = state.site.pages.find((page) => page.id === state.site.activePageId)
   return activePage?.rootId ?? state.rootId
@@ -135,6 +142,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set(
       produce((state: EditorState) => {
         if (id === activeRootId(state)) return
+        if (id === newParentId) return
+        if (isDescendant(state.nodesById, id, newParentId)) return
+        if (!state.nodesById[id]) return
         const parent = state.nodesById[newParentId]
         if (!parent) return
         Object.values(state.nodesById).forEach((node) => {
