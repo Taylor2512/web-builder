@@ -17,8 +17,8 @@ const TYPE_ACCENT: Record<string, string> = {
 export default function Inspector() {
   const nodeId = useEditorStore((s) => s.selectedNodeId)
   const node = useEditorStore((s) => (nodeId ? s.nodesById[nodeId] : null))
-  const updateProps = useEditorStore((s) => s.updateProps)
-  const updateStyle = useEditorStore((s) => s.updateStyle)
+  const updateNodePropsByType = useEditorStore((s) => s.updateNodePropsByType)
+  const updateNodeStyleByBreakpoint = useEditorStore((s) => s.updateNodeStyleByBreakpoint)
   const removeNode = useEditorStore((s) => s.removeNode)
   const duplicateNode = useEditorStore((s) => s.duplicateNode)
   const breakpoint = useEditorStore((s) => s.activeBreakpoint)
@@ -52,7 +52,7 @@ export default function Inspector() {
   const addField = () => {
     if (node.type !== 'form') return
     const next: FormField[] = [...node.props.fields, { id: createId(), type: 'text', label: 'New Field', name: `field_${node.props.fields.length + 1}` }]
-    updateProps(node.id, { fields: next })
+    updateNodePropsByType(node.id, { fields: next })
   }
 
   const TAB_LABELS: Record<string, string> = { props: 'Contenido', style: 'Estilo', layout: 'Diseño', responsive: 'Adaptable' }
@@ -119,25 +119,25 @@ export default function Inspector() {
               <Card>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <Field label='Content'>
-                    <TextArea value={node.props.text} onChange={(e) => updateProps(node.id, { text: e.target.value })} />
+                    <TextArea value={node.props.text} onChange={(e) => updateNodePropsByType(node.id, { text: e.target.value })} />
                   </Field>
                   <Field label='HTML Tag'>
-                    <StyledSelect value={node.props.tag} onChange={(e) => updateProps(node.id, { tag: e.target.value })}>
-                      {['h1', 'h2', 'h3', 'h4', 'p', 'span', 'label', 'li'].map((t) => (
+                    <StyledSelect value={node.props.tag} onChange={(e) => updateNodePropsByType(node.id, { tag: e.target.value as 'h1' | 'h2' | 'h3' | 'p' | 'span' })}>
+                      {(['h1', 'h2', 'h3', 'p', 'span'] as const).map((t) => (
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </StyledSelect>
                   </Field>
                   <Field label='Align'>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
-                      {(['left', 'center', 'right', 'justify'] as const).map((a) => (
+                      {(['left', 'center', 'right'] as const).map((a) => (
                         <GhostButton
                           key={a}
-                          onClick={() => updateProps(node.id, { align: a })}
+                          onClick={() => updateNodePropsByType(node.id, { align: a })}
                           style={{ background: node.props.align === a ? 'var(--primary-dim)' : undefined, fontSize: 13 }}
                           title={a}
                         >
-                          {a === 'left' ? '⫷' : a === 'center' ? '≡' : a === 'right' ? '⫸' : '⫶'}
+                          {a === 'left' ? '⫷' : a === 'center' ? '≡' : '⫸'}
                         </GhostButton>
                       ))}
                     </div>
@@ -150,13 +150,13 @@ export default function Inspector() {
               <Card>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <Field label='Label'>
-                    <TextInput value={node.props.label} onChange={(e) => updateProps(node.id, { label: e.target.value })} />
+                    <TextInput value={node.props.label} onChange={(e) => updateNodePropsByType(node.id, { label: e.target.value })} />
                   </Field>
                   <Field label='URL / Href'>
-                    <TextInput value={node.props.href} onChange={(e) => updateProps(node.id, { href: e.target.value })} placeholder='https://…' />
+                    <TextInput value={node.props.href} onChange={(e) => updateNodePropsByType(node.id, { href: e.target.value })} placeholder='https://…' />
                   </Field>
                   <Field label='Open in'>
-                    <StyledSelect value={node.props.target ?? '_self'} onChange={(e) => updateProps(node.id, { target: e.target.value })}>
+                    <StyledSelect value={node.props.target ?? '_self'} onChange={(e) => updateNodePropsByType(node.id, { target: e.target.value as '_self' | '_blank' })}>
                       <option value='_self'>Same tab</option>
                       <option value='_blank'>New tab</option>
                     </StyledSelect>
@@ -169,14 +169,14 @@ export default function Inspector() {
               <Card>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <Field label='Image URL'>
-                    <TextInput value={node.props.src} onChange={(e) => updateProps(node.id, { src: e.target.value })} placeholder='https://…' />
+                    <TextInput value={node.props.src} onChange={(e) => updateNodePropsByType(node.id, { src: e.target.value })} placeholder='https://…' />
                   </Field>
                   <Field label='Alt text'>
-                    <TextInput value={node.props.alt} onChange={(e) => updateProps(node.id, { alt: e.target.value })} placeholder='Describe the image' />
+                    <TextInput value={node.props.alt} onChange={(e) => updateNodePropsByType(node.id, { alt: e.target.value })} placeholder='Describe the image' />
                   </Field>
                   <Field label='Object fit'>
-                    <StyledSelect value={node.props.fit ?? 'cover'} onChange={(e) => updateProps(node.id, { fit: e.target.value })}>
-                      {['contain', 'cover', 'fill', 'none', 'scale-down'].map((f) => (
+                    <StyledSelect value={node.props.fit ?? 'cover'} onChange={(e) => updateNodePropsByType(node.id, { fit: e.target.value as 'cover' | 'contain' })}>
+                      {(['contain', 'cover'] as const).map((f) => (
                         <option key={f} value={f}>{f}</option>
                       ))}
                     </StyledSelect>
@@ -191,7 +191,7 @@ export default function Inspector() {
                   label='Height'
                   value={typeof node.props.size === 'number' ? node.props.size : parseInt(String(node.props.size)) || 24}
                   min={4} max={320} step={4}
-                  onChange={(v) => updateProps(node.id, { size: v })}
+                  onChange={(v) => updateNodePropsByType(node.id, { size: v })}
                 />
               </Card>
             )}
@@ -202,7 +202,7 @@ export default function Inspector() {
                   label='Thickness'
                   value={typeof node.props.thickness === 'number' ? node.props.thickness : 1}
                   min={1} max={16}
-                  onChange={(v) => updateProps(node.id, { thickness: v })}
+                  onChange={(v) => updateNodePropsByType(node.id, { thickness: v })}
                 />
               </Card>
             )}
@@ -220,10 +220,10 @@ export default function Inspector() {
                 <Card>
                   <div style={{ display: 'grid', gap: 10 }}>
                     <Field label='Submit button text'>
-                      <TextInput value={node.props.submitText} onChange={(e) => updateProps(node.id, { submitText: e.target.value })} />
+                      <TextInput value={node.props.submitText} onChange={(e) => updateNodePropsByType(node.id, { submitText: e.target.value })} />
                     </Field>
                     <Field label='Layout'>
-                      <StyledSelect value={node.props.layout ?? 'single'} onChange={(e) => updateProps(node.id, { layout: e.target.value })}>
+                      <StyledSelect value={node.props.layout ?? 'single'} onChange={(e) => updateNodePropsByType(node.id, { layout: e.target.value as 'stack' | 'grid' })}>
                         <option value='single'>Single column</option>
                         <option value='grid'>Two columns</option>
                       </StyledSelect>
@@ -246,46 +246,46 @@ export default function Inspector() {
                             if (index === 0) return
                             const next = node.props.fields.slice()
                             ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-                            updateProps(node.id, { fields: next })
+                            updateNodePropsByType(node.id, { fields: next })
                           }} disabled={index === 0} title='Move up'>↑</IconButton>
                           <IconButton onClick={() => {
                             if (index === node.props.fields.length - 1) return
                             const next = node.props.fields.slice()
                             ;[next[index + 1], next[index]] = [next[index], next[index + 1]]
-                            updateProps(node.id, { fields: next })
+                            updateNodePropsByType(node.id, { fields: next })
                           }} disabled={index === node.props.fields.length - 1} title='Move down'>↓</IconButton>
-                          <IconButton onClick={() => updateProps(node.id, { fields: node.props.fields.filter((x) => x.id !== field.id) })} title='Delete field' style={{ color: 'var(--danger)' }}>✕</IconButton>
+                          <IconButton onClick={() => updateNodePropsByType(node.id, { fields: node.props.fields.filter((x) => x.id !== field.id) })} title='Delete field' style={{ color: 'var(--danger)' }}>✕</IconButton>
                         </div>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                         <Field label='Label'>
                           <TextInput value={field.label} placeholder='Field label' onChange={(e) => {
-                            const next = node.props.fields.slice(); next[index] = { ...field, label: e.target.value }; updateProps(node.id, { fields: next })
+                            const next = node.props.fields.slice(); next[index] = { ...field, label: e.target.value }; updateNodePropsByType(node.id, { fields: next })
                           }} />
                         </Field>
                         <Field label='Name'>
                           <TextInput value={field.name} placeholder='field_name' onChange={(e) => {
-                            const next = node.props.fields.slice(); next[index] = { ...field, name: e.target.value }; updateProps(node.id, { fields: next })
+                            const next = node.props.fields.slice(); next[index] = { ...field, name: e.target.value }; updateNodePropsByType(node.id, { fields: next })
                           }} />
                         </Field>
                       </div>
                       <Field label='Type'>
                         <StyledSelect value={field.type} onChange={(e) => {
-                          const next = node.props.fields.slice(); next[index] = { ...field, type: e.target.value as FormFieldType }; updateProps(node.id, { fields: next })
+                          const next = node.props.fields.slice(); next[index] = { ...field, type: e.target.value as FormFieldType }; updateNodePropsByType(node.id, { fields: next })
                         }}>
                           {fieldTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                         </StyledSelect>
                       </Field>
                       <Field label='Placeholder'>
                         <TextInput value={field.placeholder ?? ''} placeholder='Placeholder text' onChange={(e) => {
-                          const next = node.props.fields.slice(); next[index] = { ...field, placeholder: e.target.value }; updateProps(node.id, { fields: next })
+                          const next = node.props.fields.slice(); next[index] = { ...field, placeholder: e.target.value }; updateNodePropsByType(node.id, { fields: next })
                         }} />
                       </Field>
                       <Toggle
                         checked={!!field.required}
                         label='Required field'
                         onChange={(v) => {
-                          const next = node.props.fields.slice(); next[index] = { ...field, required: v }; updateProps(node.id, { fields: next })
+                          const next = node.props.fields.slice(); next[index] = { ...field, required: v }; updateNodePropsByType(node.id, { fields: next })
                         }}
                       />
                       {(field.type === 'select' || field.type === 'radio') && (
@@ -298,7 +298,7 @@ export default function Inspector() {
                                 const [value, label] = pair.split(':')
                                 return { id: createId(), value: value?.trim() ?? '', label: label?.trim() ?? value?.trim() ?? '' }
                               })
-                              const next = node.props.fields.slice(); next[index] = { ...field, options }; updateProps(node.id, { fields: next })
+                              const next = node.props.fields.slice(); next[index] = { ...field, options }; updateNodePropsByType(node.id, { fields: next })
                             }}
                           />
                         </Field>
@@ -317,40 +317,40 @@ export default function Inspector() {
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
                 <Field label='Text color'>
-                  <ColorInput value={String(style.color ?? '')} onChange={(v) => updateStyle(node.id, { color: v })} />
+                  <ColorInput value={String(style.color ?? '')} onChange={(v) => updateNodeStyleByBreakpoint(node.id, { color: v })} />
                 </Field>
                 <Separator />
                 <Field label='Background'>
-                  <ColorInput value={String(style.background ?? '')} onChange={(v) => updateStyle(node.id, { background: v })} />
+                  <ColorInput value={String(style.background ?? '')} onChange={(v) => updateNodeStyleByBreakpoint(node.id, { background: v })} />
                 </Field>
               </div>
             </Card>
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
-                <Slider label='Border radius' value={Number(style.borderRadius ?? 0)} min={0} max={80} onChange={(v) => updateStyle(node.id, { borderRadius: v })} />
+                <Slider label='Border radius' value={Number(style.borderRadius ?? 0)} min={0} max={80} onChange={(v) => updateNodeStyleByBreakpoint(node.id, { borderRadius: v })} />
                 <Separator />
                 <Field label='Border'>
-                  <TextInput value={String(style.border ?? '')} onChange={(e) => updateStyle(node.id, { border: e.target.value })} placeholder='1px solid #ccc' />
+                  <TextInput value={String(style.border ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { border: e.target.value })} placeholder='1px solid #ccc' />
                 </Field>
                 <Field label='Box shadow'>
-                  <TextInput value={String(style.boxShadow ?? '')} onChange={(e) => updateStyle(node.id, { boxShadow: e.target.value })} placeholder='0 4px 12px rgba(0,0,0,0.1)' />
+                  <TextInput value={String(style.boxShadow ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { boxShadow: e.target.value })} placeholder='0 4px 12px rgba(0,0,0,0.1)' />
                 </Field>
               </div>
             </Card>
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
-                <Slider label='Opacity' value={Number(style.opacity ?? 1) * 100} min={0} max={100} unit='%' onChange={(v) => updateStyle(node.id, { opacity: v / 100 })} />
+                <Slider label='Opacity' value={Number(style.opacity ?? 1) * 100} min={0} max={100} unit='%' onChange={(v) => updateNodeStyleByBreakpoint(node.id, { opacity: v / 100 })} />
                 <Field label='Font size'>
-                  <TextInput value={String(style.fontSize ?? '')} onChange={(e) => updateStyle(node.id, { fontSize: e.target.value })} placeholder='16px' />
+                  <TextInput value={String(style.fontSize ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { fontSize: e.target.value })} placeholder='16px' />
                 </Field>
                 <Field label='Font weight'>
-                  <StyledSelect value={String(style.fontWeight ?? '')} onChange={(e) => updateStyle(node.id, { fontWeight: e.target.value })}>
+                  <StyledSelect value={String(style.fontWeight ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { fontWeight: e.target.value })}>
                     <option value=''>Default</option>
                     {['300', '400', '500', '600', '700', '800', '900'].map((w) => <option key={w} value={w}>{w}</option>)}
                   </StyledSelect>
                 </Field>
                 <Field label='Line height'>
-                  <TextInput value={String(style.lineHeight ?? '')} onChange={(e) => updateStyle(node.id, { lineHeight: e.target.value })} placeholder='1.5' />
+                  <TextInput value={String(style.lineHeight ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { lineHeight: e.target.value })} placeholder='1.5' />
                 </Field>
               </div>
             </Card>
@@ -363,7 +363,7 @@ export default function Inspector() {
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
                 <Field label='Display'>
-                  <StyledSelect value={String(style.display ?? '')} onChange={(e) => updateStyle(node.id, { display: e.target.value })}>
+                  <StyledSelect value={String(style.display ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { display: e.target.value })}>
                     <option value=''>Default</option>
                     {['block', 'flex', 'grid', 'inline', 'inline-flex', 'inline-block', 'none'].map((d) => <option key={d} value={d}>{d}</option>)}
                   </StyledSelect>
@@ -371,24 +371,24 @@ export default function Inspector() {
                 {(style.display === 'flex' || style.display === 'inline-flex') && (
                   <>
                     <Field label='Flex direction'>
-                      <StyledSelect value={String(style.flexDirection ?? 'row')} onChange={(e) => updateStyle(node.id, { flexDirection: e.target.value })}>
+                      <StyledSelect value={String(style.flexDirection ?? 'row')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { flexDirection: e.target.value })}>
                         {['row', 'column', 'row-reverse', 'column-reverse'].map((d) => <option key={d} value={d}>{d}</option>)}
                       </StyledSelect>
                     </Field>
                     <Field label='Justify content'>
-                      <StyledSelect value={String(style.justifyContent ?? '')} onChange={(e) => updateStyle(node.id, { justifyContent: e.target.value })}>
+                      <StyledSelect value={String(style.justifyContent ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { justifyContent: e.target.value })}>
                         <option value=''>Default</option>
                         {['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'].map((d) => <option key={d} value={d}>{d}</option>)}
                       </StyledSelect>
                     </Field>
                     <Field label='Align items'>
-                      <StyledSelect value={String(style.alignItems ?? '')} onChange={(e) => updateStyle(node.id, { alignItems: e.target.value })}>
+                      <StyledSelect value={String(style.alignItems ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { alignItems: e.target.value })}>
                         <option value=''>Default</option>
                         {['flex-start', 'center', 'flex-end', 'stretch', 'baseline'].map((d) => <option key={d} value={d}>{d}</option>)}
                       </StyledSelect>
                     </Field>
                     <Field label='Flex wrap'>
-                      <StyledSelect value={String(style.flexWrap ?? '')} onChange={(e) => updateStyle(node.id, { flexWrap: e.target.value })}>
+                      <StyledSelect value={String(style.flexWrap ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { flexWrap: e.target.value })}>
                         <option value=''>Default</option>
                         {['nowrap', 'wrap', 'wrap-reverse'].map((d) => <option key={d} value={d}>{d}</option>)}
                       </StyledSelect>
@@ -399,29 +399,29 @@ export default function Inspector() {
             </Card>
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
-                <Slider label='Gap' value={Number(style.gap ?? 0)} min={0} max={80} onChange={(v) => updateStyle(node.id, { gap: v })} />
+                <Slider label='Gap' value={Number(style.gap ?? 0)} min={0} max={80} onChange={(v) => updateNodeStyleByBreakpoint(node.id, { gap: v })} />
                 <Separator />
                 <Field label='Padding'>
-                  <TextInput value={String(style.padding ?? '')} onChange={(e) => updateStyle(node.id, { padding: e.target.value })} placeholder='16px or 8px 16px' />
+                  <TextInput value={String(style.padding ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { padding: e.target.value })} placeholder='16px or 8px 16px' />
                 </Field>
                 <Field label='Margin'>
-                  <TextInput value={String(style.margin ?? '')} onChange={(e) => updateStyle(node.id, { margin: e.target.value })} placeholder='0 auto' />
+                  <TextInput value={String(style.margin ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { margin: e.target.value })} placeholder='0 auto' />
                 </Field>
               </div>
             </Card>
             <Card>
               <div style={{ display: 'grid', gap: 12 }}>
                 <Field label='Width'>
-                  <TextInput value={String(style.width ?? '')} onChange={(e) => updateStyle(node.id, { width: e.target.value })} placeholder='100% / 400px' />
+                  <TextInput value={String(style.width ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { width: e.target.value })} placeholder='100% / 400px' />
                 </Field>
                 <Field label='Max width'>
-                  <TextInput value={String(style.maxWidth ?? '')} onChange={(e) => updateStyle(node.id, { maxWidth: e.target.value })} placeholder='1200px' />
+                  <TextInput value={String(style.maxWidth ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { maxWidth: e.target.value })} placeholder='1200px' />
                 </Field>
                 <Field label='Height'>
-                  <TextInput value={String(style.height ?? '')} onChange={(e) => updateStyle(node.id, { height: e.target.value })} placeholder='auto / 400px' />
+                  <TextInput value={String(style.height ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { height: e.target.value })} placeholder='auto / 400px' />
                 </Field>
                 <Field label='Min height'>
-                  <TextInput value={String(style.minHeight ?? '')} onChange={(e) => updateStyle(node.id, { minHeight: e.target.value })} placeholder='120px' />
+                  <TextInput value={String(style.minHeight ?? '')} onChange={(e) => updateNodeStyleByBreakpoint(node.id, { minHeight: e.target.value })} placeholder='120px' />
                 </Field>
               </div>
             </Card>
