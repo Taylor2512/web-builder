@@ -140,9 +140,5 @@ export const resolveBinding = (
     return { value, errors }
   }
 
-  if (/^[A-Za-z_$][\w$]*(?:\[(?:\d+)\]|\.[A-Za-z_$][\w$]*)*$/.test(input)) {
-    return readPath(context, input)
-  }
-
   return { value: rawValue, errors: [] }
 }
