@@ -31,6 +31,7 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
   const removeNode = useEditorStore((s) => s.removeNode)
   const duplicateNode = useEditorStore((s) => s.duplicateNode)
   const showNode = useEditorStore((s) => s.showNode)
+  const toggleNodeVisibility = useEditorStore((s) => s.toggleNodeVisibility)
   const breakpoint = useEditorStore((s) => s.activeBreakpoint)
   const [tab, setTab] = useState<'props' | 'style' | 'layout' | 'responsive' | 'code'>('props')
   const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(node.props, null, 2))
@@ -93,6 +94,16 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
         <div style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${accent}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 10, height: 10, borderRadius: 3, background: accent }} /></div>
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', textTransform: 'capitalize' }}>{node.type}</div><div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'monospace' }}>#{node.id.slice(-8)}</div></div>
         {node.type !== 'page' && <button type='button' onClick={() => duplicateNode(node.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 7px', fontSize: 11 }}>⧉</button>}
+        {node.type !== 'page' && (
+          <button
+            type='button'
+            onClick={() => toggleNodeVisibility(node.id)}
+            style={{ background: node.isHidden ? 'rgba(245,158,11,0.1)' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, color: node.isHidden ? 'var(--warning)' : 'var(--text-secondary)', cursor: 'pointer', padding: '4px 7px', fontSize: 11 }}
+            title={node.isHidden ? 'Mostrar componente' : 'Ocultar componente'}
+          >
+            {node.isHidden ? '👁' : '🚫'}
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 0 }}>{TABS.map((name) => <button key={name} type='button' onClick={() => setTab(name)} style={{ flex: 1, padding: '6px 2px', background: 'none', border: 'none', borderBottom: tab === name ? `2px solid ${accent}` : '2px solid transparent', color: tab === name ? accent : 'var(--text-secondary)', fontWeight: tab === name ? 700 : 500, fontSize: 10, cursor: 'pointer', marginBottom: -1 }}>{TAB_LABELS[name]}</button>)}</div>
     </div>

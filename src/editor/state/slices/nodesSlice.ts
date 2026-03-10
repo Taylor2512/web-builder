@@ -113,6 +113,29 @@ export const createNodesSlice: StateCreator<EditorStore, [], [], NodesActions> =
     )
     get().persistProject()
   },
+
+  showNode(id) {
+    set(
+      produce((state: EditorStore) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.isHidden = false
+      }),
+    )
+    get().persistProject()
+  },
+
+  showAllNodes() {
+    set(
+      produce((state: EditorStore) => {
+        Object.values(state.nodesById).forEach((node) => {
+          node.isHidden = false
+        })
+      }),
+    )
+    get().persistProject()
+  },
+
   moveNodeSibling(id, direction) {
     set(
       produce((state: EditorStore) => {

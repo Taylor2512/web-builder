@@ -8,6 +8,7 @@ const node: Node = {
   type: "text",
   props: { text: "Hi", tag: "p", align: "left" },
   children: [],
+  isHidden: false,
   styleByBreakpoint: {
     desktop: { color: "red", fontSize: 16, marginTop: 12 },
     tablet: { fontSize: 14 },
@@ -28,5 +29,21 @@ test("mergeResponsiveStyle merges all breakpoints up to mobile", () => {
     color: "blue",
     fontSize: 14,
     marginTop: 12,
+  });
+});
+
+test("mergeResponsiveStyle keeps inherited value when child breakpoint sets undefined", () => {
+  const withUndefined: Node = {
+    ...node,
+    styleByBreakpoint: {
+      desktop: { color: "red", fontSize: 18 },
+      tablet: { color: undefined },
+      mobile: {},
+    },
+  };
+
+  assert.deepEqual(mergeResponsiveStyle(withUndefined, "tablet"), {
+    color: "red",
+    fontSize: 18,
   });
 });

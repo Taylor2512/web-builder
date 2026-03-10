@@ -22,7 +22,6 @@ import {
   containerTypes,
   sanitizeUrl,
   type PageDef,
-  type Breakpoint,
   type FormField,
   type Node,
   type NodeType,
@@ -30,6 +29,7 @@ import {
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import { mergeResponsiveStyle } from "./renderers/mergeResponsiveStyle";
 import PreviewRouter from "../preview/PreviewRouter";
 import {
   resolveBinding,
@@ -45,15 +45,6 @@ type DragMeta = {
 type BindingIssue = BindingError & { nodeId: string; prop: string };
 type BindingContext = Record<string, unknown>;
 
-const bpOrder: Breakpoint[] = ["desktop", "tablet", "mobile"];
-
-const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
-  const style: Record<string, string | number | undefined> = {};
-  const maxIndex = bpOrder.indexOf(activeBreakpoint);
-  for (let i = 0; i <= maxIndex; i += 1)
-    Object.assign(style, node.styleByBreakpoint[bpOrder[i]]);
-  return style;
-};
 
 const validateField = (
   field: FormField,
@@ -418,7 +409,7 @@ function RenderNode({
 
   if (!node) return null;
 
-  const computedStyle = mergeStyle(node, activeBreakpoint);
+  const computedStyle = mergeResponsiveStyle(node, activeBreakpoint);
   const isSelected = selectedNodeId === id;
   const dropZoneId = `drop-${node.id}`;
   const isDropTarget = hoveredDropId === dropZoneId;
