@@ -60,19 +60,28 @@ export const createPersistenceSlice: StateCreator<EditorStore, [], [], Persisten
   },
 
   submitForm(formId, value) {
-    set(
-      produce((state: EditorStore) => {
-        const key = `${state.site.activePageId}:${formId}`
-        const current = state.submissions[key] ?? []
-        state.submissions[key] = [...current, value]
-      }),
-    )
     const state = get()
-    void saveRemoteSubmission({
+    const timestamp = new Date().toISOString()
+    const submissionEntry = {
       pageId: state.site.activePageId,
       formId,
+      timestamp,
       payload: value,
-      createdAt: new Date().toISOString(),
+    }
+
+    set(
+      produce((draft: EditorStore) => {
+        const key = `${draft.site.activePageId}:${formId}`
+        const current = draft.submissions[key] ?? []
+        draft.submissions[key] = [...current, submissionEntry]
+      }),
+    )
+
+    void saveRemoteSubmission({
+      pageId: submissionEntry.pageId,
+      formId,
+      payload: value,
+      createdAt: timestamp,
     }).catch(() => {
       // keep local submission even if json-server is down
     })
