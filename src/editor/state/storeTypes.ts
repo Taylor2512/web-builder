@@ -56,6 +56,10 @@ export type PersistenceActions = {
   setBuilderConfig: (config: BuilderConfig) => void
   persistProject: () => void
   setPersistencePreference: (preference: PersistencePreference) => Promise<void>
+  undo: () => void
+  redo: () => void
+  createPublishSnapshot: (label?: string) => void
+  restorePublishSnapshot: (snapshotId: string) => void
 }
 
 export type UIActions = {
@@ -80,6 +84,9 @@ export type EditorStore = EditorProject & {
   persistenceMode: PersistenceMode
   persistencePreference: PersistencePreference
   persistenceError: string | null
+  historyPast: EditorProject[]
+  historyFuture: EditorProject[]
+  publishSnapshots: { id: string; label: string; timestamp: string; snapshot: EditorProject }[]
 } & SiteActions
   & NodesActions
   & FlowsActions

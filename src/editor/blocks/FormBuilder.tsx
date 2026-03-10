@@ -44,6 +44,13 @@ export default function FormBuilder() {
   const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
   const setRightPanelWidth = useEditorStore((s) => s.setRightPanelWidth)
   const setActiveLeftPanel = useEditorStore((s) => s.setActiveLeftPanel)
+  const undo = useEditorStore((s) => s.undo)
+  const redo = useEditorStore((s) => s.redo)
+  const historyPastSize = useEditorStore((s) => s.historyPast.length)
+  const historyFutureSize = useEditorStore((s) => s.historyFuture.length)
+  const publishSnapshots = useEditorStore((s) => s.publishSnapshots)
+  const createPublishSnapshot = useEditorStore((s) => s.createPublishSnapshot)
+  const restorePublishSnapshot = useEditorStore((s) => s.restorePublishSnapshot)
   const fileRef = useRef<HTMLInputElement>(null)
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
@@ -300,6 +307,22 @@ export default function FormBuilder() {
         {/* Right: breakpoints + preview + io */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {/* Breakpoints */}
+          {workspace === 'pages' && (
+            <>
+              <GhostButton onClick={undo} disabled={historyPastSize < 2} title='Deshacer' style={{ fontSize: 11 }}>↶ Undo</GhostButton>
+              <GhostButton onClick={redo} disabled={historyFutureSize < 1} title='Rehacer' style={{ fontSize: 11 }}>↷ Redo</GhostButton>
+              <GhostButton onClick={() => createPublishSnapshot()} title='Guardar snapshot de publicación' style={{ fontSize: 11 }}>📸 Snapshot</GhostButton>
+              <select
+                defaultValue=''
+                onChange={(e) => { if (e.target.value) restorePublishSnapshot(e.target.value); e.target.value = '' }}
+                style={{ padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: 11 }}
+              >
+                <option value=''>Restaurar snapshot…</option>
+                {publishSnapshots.map((snapshot) => <option key={snapshot.id} value={snapshot.id}>{snapshot.label}</option>)}
+              </select>
+            </>
+          )}
+
           {workspace === 'pages' && (
             <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
               {(['desktop', 'tablet', 'mobile'] as const).map((bp) => {
