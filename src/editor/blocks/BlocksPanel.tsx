@@ -315,8 +315,8 @@ function LayerItem({ id, depth, nodesById, selectedId, onSelect, onToggleVisibil
 }
 
 /* ── Main panel ── */
-export default function BlocksPanel() {
-  const [tab, setTab] = useState<'blocks' | 'layers'>('blocks')
+export default function BlocksPanel({ defaultTab = 'blocks' }: { defaultTab?: 'blocks' | 'layers' }) {
+  const [tab, setTab] = useState<'blocks' | 'layers'>(defaultTab)
   const [blockSearch, setBlockSearch] = useState('')
   const [layerSearch, setLayerSearch] = useState('')
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibilityFilter>('all')

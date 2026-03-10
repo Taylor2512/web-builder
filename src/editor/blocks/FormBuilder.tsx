@@ -6,6 +6,8 @@ import { useEditorStore } from '../state/useEditorStore'
 import { GhostButton, PrimaryButton } from '../../shared/ui'
 import { loadBuilderConfig } from '../config/loadBuilderConfig'
 import FlowStudio from '../flows/FlowStudio'
+import PagesPanel from '../panels/PagesPanel'
+import SiteDesignPanel from '../panels/SiteDesignPanel'
 import { loadRemoteProject, saveRemoteProject } from '../api/jsonServer'
 import { projectSnapshot } from '../state/useEditorStore'
 
@@ -42,6 +44,7 @@ export default function FormBuilder() {
   const setFocusMode = useEditorStore((s) => s.setFocusMode)
   const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
   const setRightPanelWidth = useEditorStore((s) => s.setRightPanelWidth)
+  const setActiveLeftPanel = useEditorStore((s) => s.setActiveLeftPanel)
   const fileRef = useRef<HTMLInputElement>(null)
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
@@ -94,7 +97,8 @@ export default function FormBuilder() {
 
       if ((event.ctrlKey || event.metaKey) && event.key === '\\') {
         event.preventDefault()
-        togglePanels()
+        // Toggle left panel: close if any open, else re-open last or default to blocks
+        setActiveLeftPanel(ui.activeLeftPanel !== null ? null : 'blocks')
         return
       }
 
@@ -116,6 +120,13 @@ export default function FormBuilder() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, togglePanels])
 
+  // Auto-open Inspector when a node gets selected
+  useEffect(() => {
+    if (selectedNodeId && !ui.rightPanelOpen) {
+      toggleRightPanel()
+    }
+  }, [selectedNodeId])
+
   const activePage = pages.find((p) => p.id === activePageId)
 
   const syncDot = {
@@ -136,9 +147,61 @@ export default function FormBuilder() {
   }
 
   const focusModeActive = workspace === 'pages' && ui.focusMode
-  const panelColumns = focusModeActive
-    ? '0px 1fr 0px'
-    : `${ui.leftPanelOpen ? `${ui.leftPanelWidth}px` : '0px'} 1fr ${ui.rightPanelOpen ? `${ui.rightPanelWidth}px` : '0px'}`
+  const activeLeftPanel = ui.activeLeftPanel ?? null
+
+  // Helper: toggle a specific left panel (same panel click = close)
+  const togglePanel = (panel: 'blocks' | 'layers' | 'pages' | 'design') => {
+    setActiveLeftPanel(activeLeftPanel === panel ? null : panel)
+  }
+
+  // ── Sidebar icon button
+  const SidebarBtn = ({
+    id, icon, label,
+  }: {
+    id: 'blocks' | 'layers' | 'pages' | 'design'
+    icon: string
+    label: string
+  }) => {
+    const isActive = activeLeftPanel === id
+    const [hov, setHov] = useState(false)
+    return (
+      <div style={{ position: 'relative' }}>
+        <button
+          type='button'
+          onClick={() => togglePanel(id)}
+          onMouseEnter={() => setHov(true)}
+          onMouseLeave={() => setHov(false)}
+          title={label}
+          style={{
+            width: 44, height: 44, borderRadius: 10,
+            border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
+            background: isActive ? 'var(--primary-dim)' : hov ? 'var(--surface-hover)' : 'transparent',
+            color: isActive ? 'var(--primary)' : hov ? 'var(--text)' : 'var(--text-secondary)',
+            cursor: 'pointer', fontSize: 16,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+            transition: 'all 150ms ease',
+            flexShrink: 0,
+            boxShadow: isActive ? '0 0 0 1px var(--primary-glow)' : 'none',
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
+          <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1 }}>{label}</span>
+        </button>
+        {/* Tooltip */}
+        {hov && !isActive && (
+          <div style={{
+            position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
+            marginLeft: 10, background: 'var(--surface-3)', color: 'var(--text)',
+            fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6,
+            whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 100,
+            boxShadow: 'var(--shadow)', border: '1px solid var(--border-2)',
+          }}>
+            {label}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -267,20 +330,6 @@ export default function FormBuilder() {
 
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
-          {workspace === 'pages' && !focusModeActive && (
-            <>
-              <GhostButton onClick={toggleLeftPanel} title='Mostrar/ocultar panel izquierdo' style={{ fontSize: 11 }}>
-                {ui.leftPanelOpen ? '⇤ Left' : '⇥ Left'}
-              </GhostButton>
-              <GhostButton onClick={toggleRightPanel} title='Mostrar/ocultar panel derecho' style={{ fontSize: 11 }}>
-                {ui.rightPanelOpen ? 'Right ⇥' : 'Right ⇤'}
-              </GhostButton>
-              <GhostButton onClick={togglePanels} title='Mostrar/ocultar ambos paneles (Ctrl/Cmd + \\)' style={{ fontSize: 11 }}>
-                ⌘\\
-              </GhostButton>
-            </>
-          )}
-
           {workspace === 'pages' && (
             <GhostButton onClick={toggleFocusMode} title='Activar/desactivar Focus (F o Shift+F)' style={{ fontSize: 11 }}>
               {focusModeActive ? '⤫ Exit Focus' : '◉ Focus'}
@@ -320,52 +369,170 @@ export default function FormBuilder() {
       </header>
 
       {/* ── Main content ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: panelColumns, minHeight: 0, overflow: 'hidden' }}>
-        {workspace === 'pages' ? (
-          <>
-            {!focusModeActive && (
-              <aside style={{ borderRight: ui.leftPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                {ui.leftPanelOpen && <BlocksPanel />}
-                <button
-                  type='button'
-                  onClick={toggleLeftPanel}
-                  title={ui.leftPanelOpen ? 'Colapsar panel izquierdo' : 'Expandir panel izquierdo'}
-                  style={{ position: 'absolute', right: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-                >
-                  {ui.leftPanelOpen ? '◀' : '▶'}
-                </button>
-                {ui.leftPanelOpen && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
-                    <button type='button' title='Reducir ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
-                    <button type='button' title='Aumentar ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
-                  </div>
-                )}
-              </aside>
-            )}
-            <section style={{ overflow: 'hidden' }}><Canvas /></section>
-            {!focusModeActive && (
-              <aside style={{ borderLeft: ui.rightPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                {ui.rightPanelOpen && <Inspector />}
-                <button
-                  type='button'
-                  onClick={toggleRightPanel}
-                  title={ui.rightPanelOpen ? 'Colapsar panel derecho' : 'Expandir panel derecho'}
-                  style={{ position: 'absolute', left: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-                >
-                  {ui.rightPanelOpen ? '▶' : '◀'}
-                </button>
-                {ui.rightPanelOpen && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
-                    <button type='button' title='Reducir ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
-                    <button type='button' title='Aumentar ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
-                  </div>
-                )}
-              </aside>
-            )}
-          </>
-        ) : (
-          <section style={{ gridColumn: '1 / -1', overflow: 'auto' }}><FlowStudio /></section>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+
+        {/* ── Left Icon Sidebar (Wix-style) ── */}
+        {workspace === 'pages' && !focusModeActive && (
+          <nav style={{
+            width: 56, flexShrink: 0,
+            background: 'var(--panel)',
+            borderRight: '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', padding: '6px 6px 10px', gap: 2,
+            zIndex: 30,
+          }}>
+            {/* Add block shortcut */}
+            <button
+              type='button'
+              title='Agregar bloque'
+              onClick={() => togglePanel('blocks')}
+              style={{
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 6,
+                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 12px var(--primary-glow)',
+                transition: 'transform 120ms',
+              }}
+            >+</button>
+            {/* Divider */}
+            <div style={{ width: 28, height: 1, background: 'var(--border)', marginBottom: 4 }} />
+            <SidebarBtn id='blocks' icon='⊞' label='Blocks' />
+            <SidebarBtn id='layers' icon='≡' label='Layers' />
+            <SidebarBtn id='pages' icon='⬜' label='Pages' />
+            <SidebarBtn id='design' icon='✦' label='Design' />
+          </nav>
         )}
+
+        {/* ── Canvas + floating panels wrapper ── */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+
+          {/* Canvas — always full width */}
+          {workspace === 'pages'
+            ? <section style={{ width: '100%', height: '100%', overflow: 'hidden' }}><Canvas /></section>
+            : <section style={{ width: '100%', height: '100%', overflow: 'auto' }}><FlowStudio /></section>
+          }
+
+          {/* ── Floating Left Panel ── */}
+          {workspace === 'pages' && !focusModeActive && (
+            <aside
+              style={{
+                position: 'absolute', left: 0, top: 0, bottom: 0,
+                width: ui.leftPanelWidth,
+                zIndex: 20,
+                background: 'var(--panel)',
+                borderRight: '1px solid var(--border)',
+                display: 'flex', flexDirection: 'column',
+                transform: activeLeftPanel ? 'translateX(0)' : 'translateX(-100%)',
+                transition: 'transform 220ms cubic-bezier(0.4,0,0.2,1), box-shadow 220ms ease',
+                boxShadow: activeLeftPanel ? '4px 0 24px rgba(0,0,0,0.45)' : 'none',
+                willChange: 'transform',
+                pointerEvents: activeLeftPanel ? 'auto' : 'none',
+              }}
+            >
+              {/* Panel header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0 10px 0 14px', height: 40, flexShrink: 0,
+                borderBottom: '1px solid var(--border)',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                  {activeLeftPanel === 'blocks' ? 'Blocks' : activeLeftPanel === 'layers' ? 'Layers' : activeLeftPanel === 'pages' ? 'Pages' : 'Design'}
+                </span>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <button type='button' title='Reducir ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>−</button>
+                  <button type='button' title='Ampliar ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>+</button>
+                  <button
+                    type='button'
+                    onClick={() => setActiveLeftPanel(null)}
+                    title='Cerrar panel'
+                    style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
+                  >✕</button>
+                </div>
+              </div>
+
+              {/* Panel content */}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {activeLeftPanel === 'blocks' && <BlocksPanel key='blocks' defaultTab='blocks' />}
+                {activeLeftPanel === 'layers' && <BlocksPanel key='layers' defaultTab='layers' />}
+                {activeLeftPanel === 'pages' && <PagesPanel />}
+                {activeLeftPanel === 'design' && <SiteDesignPanel />}
+              </div>
+            </aside>
+          )}
+
+          {/* ── Floating Right Panel (Inspector) ── */}
+          {workspace === 'pages' && !focusModeActive && (
+            <aside
+              style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0,
+                width: ui.rightPanelWidth,
+                zIndex: 20,
+                background: 'var(--panel)',
+                borderLeft: '1px solid var(--border)',
+                display: 'flex', flexDirection: 'column',
+                transform: ui.rightPanelOpen ? 'translateX(0)' : 'translateX(100%)',
+                transition: 'transform 220ms cubic-bezier(0.4,0,0.2,1), box-shadow 220ms ease',
+                boxShadow: ui.rightPanelOpen ? '-4px 0 24px rgba(0,0,0,0.45)' : 'none',
+                willChange: 'transform',
+                pointerEvents: ui.rightPanelOpen ? 'auto' : 'none',
+              }}
+            >
+              {/* Inspector resize controls */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0 10px 0 14px', height: 40, flexShrink: 0,
+                borderBottom: '1px solid var(--border)',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>Inspector</span>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <button type='button' title='Reducir ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>−</button>
+                  <button type='button' title='Ampliar ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '2px 4px', borderRadius: 4 }}>+</button>
+                  <button
+                    type='button'
+                    onClick={toggleRightPanel}
+                    title='Cerrar Inspector'
+                    style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
+                  >✕</button>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <Inspector />
+              </div>
+            </aside>
+          )}
+
+          {/* ── Floating toggle button: right panel ── */}
+          {workspace === 'pages' && !focusModeActive && (
+            <button
+              type='button'
+              onClick={toggleRightPanel}
+              title={ui.rightPanelOpen ? 'Cerrar Inspector' : 'Abrir Inspector'}
+              style={{
+                position: 'absolute',
+                right: ui.rightPanelOpen ? ui.rightPanelWidth : 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 25,
+                width: 20,
+                height: 48,
+                border: '1px solid var(--border)',
+                borderRight: ui.rightPanelOpen ? '1px solid var(--border)' : 'none',
+                borderRadius: ui.rightPanelOpen ? '6px 0 0 6px' : '6px 0 0 6px',
+                background: 'var(--panel)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'right 220ms cubic-bezier(0.4,0,0.2,1)',
+                boxShadow: '-2px 0 8px rgba(0,0,0,0.3)',
+              }}
+            >
+              {ui.rightPanelOpen ? '▶' : '◀'}
+            </button>
+          )}
+
+        </div>{/* end canvas wrapper */}
       </div>
 
       {focusModeActive && (

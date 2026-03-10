@@ -199,6 +199,7 @@ export type EditorProject = {
     leftPanelWidth: number
     rightPanelWidth: number
     focusMode: boolean
+    activeLeftPanel: 'blocks' | 'layers' | 'pages' | 'design' | null
   }
 }
 
@@ -333,6 +334,7 @@ export const baseTemplate = (): EditorProject => {
       leftPanelWidth: 240,
       rightPanelWidth: 300,
       focusMode: false,
+      activeLeftPanel: 'blocks' as const,
     },
   }
 }

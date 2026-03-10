@@ -69,6 +69,7 @@ export type UIActions = {
   setRightPanelWidth: (width: number) => void
   toggleFocusMode: () => void
   setFocusMode: (active: boolean) => void
+  setActiveLeftPanel: (panel: 'blocks' | 'layers' | 'pages' | 'design' | null) => void
 }
 
 export type EditorStore = EditorProject & {

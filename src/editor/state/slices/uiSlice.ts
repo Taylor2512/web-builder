@@ -59,4 +59,15 @@ export const createUiSlice: StateCreator<EditorStore, [], [], UIActions> = (set,
     set((state) => ({ ui: { ...state.ui, focusMode } }))
     get().persistProject()
   },
+
+  setActiveLeftPanel(panel) {
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        activeLeftPanel: panel,
+        leftPanelOpen: panel !== null,
+      },
+    }))
+    get().persistProject()
+  },
 })
