@@ -16,9 +16,12 @@ import {
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
 import { saveRemoteSubmission } from '../api/jsonServer'
+import { fetchDataSource, setDataSourceResolver } from '../data/engine'
+import type { DataSourceConnectionTest, DataSourceDef } from '../data/types'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
+const DATA_SOURCES_KEY = 'web-builder-data-sources-v1'
 
 type SubmissionMap = Record<string, unknown[]>
 
@@ -26,6 +29,7 @@ type EditorState = EditorProject & {
   selectedNodeId: NodeId | null
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
+  dataSources: Record<string, DataSourceDef>
   builderConfig: BuilderConfig
   addNode: (parentId: NodeId, node: Node, index?: number) => void
   removeNode: (id: NodeId) => void
@@ -56,6 +60,9 @@ type EditorState = EditorProject & {
   removePage: (pageId: string) => void
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
+  upsertDataSource: (dataSource: DataSourceDef) => void
+  removeDataSource: (id: string) => void
+  testDataSourceConnection: (id: string) => Promise<DataSourceConnectionTest>
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -92,6 +99,7 @@ const withAutosave = (state: EditorState) => {
   const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
+  localStorage.setItem(DATA_SOURCES_KEY, JSON.stringify(state.dataSources))
 }
 
 const fallbackTemplate = baseTemplate()
@@ -103,6 +111,9 @@ const initialProject: EditorProject = {
   rootId: initialProjectRaw.rootId ?? fallbackTemplate.rootId,
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
+const initialDataSources = safeParse<Record<string, DataSourceDef>>(localStorage.getItem(DATA_SOURCES_KEY), {})
+
+setDataSourceResolver((id) => useEditorStore.getState().dataSources[id])
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProject,
@@ -124,6 +135,8 @@ export const useEditorStore = create<EditorStore>()((...args) => ({
   ...project,
   selectedNodeId: null,
   activeBreakpoint: 'desktop',
+  submissions: initialSubmissions,
+  dataSources: initialDataSources,
   submissions: initialSubmissions(),
   builderConfig: defaultBuilderConfig,
 
@@ -263,7 +276,7 @@ export const useEditorStore = create<EditorStore>()((...args) => ({
   },
 
   reset() {
-    set({ ...baseTemplate(), selectedNodeId: null, submissions: {} })
+    set({ ...baseTemplate(), selectedNodeId: null, submissions: {}, dataSources: {} })
     withAutosave(get())
   },
 
@@ -445,6 +458,34 @@ export const useEditorStore = create<EditorStore>()((...args) => ({
       }),
     )
     withAutosave(get())
+  },
+
+  upsertDataSource(dataSource) {
+    set(
+      produce((state: EditorState) => {
+        state.dataSources[dataSource.id] = dataSource
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removeDataSource(id) {
+    set(
+      produce((state: EditorState) => {
+        delete state.dataSources[id]
+      }),
+    )
+    withAutosave(get())
+  },
+
+  async testDataSourceConnection(id) {
+    try {
+      const result = await fetchDataSource(id)
+      return { ok: true, message: `Connection successful (${result.from})` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Connection failed'
+      return { ok: false, message }
+    }
   },
 
   submitForm(formId, value) {
