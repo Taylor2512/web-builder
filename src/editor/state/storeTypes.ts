@@ -37,6 +37,8 @@ export type NodesActions = {
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
   toggleNodeVisibility: (id: NodeId) => void
+  showNode: (id: NodeId) => void
+  showAllNodes: () => void
 }
 
 export type FlowsActions = {
