@@ -27,6 +27,7 @@ export function RenderNode({
   dragMeta: DragMeta | null;
 }) {
   const node = useEditorStore((state) => state.nodesById[id]);
+  const nodesById = useEditorStore((state) => state.nodesById);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
   const mode = useEditorStore((state) => state.mode);
@@ -45,7 +46,7 @@ export function RenderNode({
     disabled: !canDropInside || mode === "preview",
   });
 
-  if (!node) return null;
+  if (!node || node.isHidden) return null;
 
   const computedStyle = mergeResponsiveStyle(node, activeBreakpoint);
   const isSelected = selectedNodeId === id;
@@ -54,6 +55,7 @@ export function RenderNode({
   const showInsertHint = isDropTarget && mode === "edit" && dragMeta?.source === "palette";
   const showMoveHint = hoveredDropId === node.id && mode === "edit" && dragMeta?.source === "canvas";
   const isContainer = containerTypes.includes(node.type);
+  const visibleChildIds = node.children.filter((childId) => !nodesById[childId]?.isHidden);
 
   const content = renderNodeContent(node, {
     mode,
@@ -146,10 +148,10 @@ export function RenderNode({
 
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode key={childId} id={childId} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
-          ))}
+        <SortableContext items={visibleChildIds} strategy={rectSortingStrategy}>
+          {visibleChildIds.map((childId) => (
+              <RenderNode key={childId} id={childId} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
+            ))}
         </SortableContext>
 
         {showInsertHint && <InsertHintOverlay />}

@@ -150,8 +150,15 @@ function CategorySection({ title, color, children }: { title: string; color: str
 }
 
 /* ── Layer tree item ── */
-function LayerItem({ id, depth, nodesById, selectedId, onSelect }:
-  { id: string; depth: number; nodesById: Record<string, { type: string; children: string[] }>; selectedId: string | null; onSelect: (id: string) => void }) {
+function LayerItem({ id, depth, nodesById, selectedId, onSelect, onToggleVisibility }:
+  {
+    id: string
+    depth: number
+    nodesById: Record<string, { type: string; children: string[]; isHidden?: boolean }>
+    selectedId: string | null
+    onSelect: (id: string) => void
+    onToggleVisibility: (id: string) => void
+  }) {
   const node = nodesById[id]
   const [open, setOpen] = useState(true)
   if (!node) return null
@@ -184,10 +191,37 @@ function LayerItem({ id, depth, nodesById, selectedId, onSelect }:
         <span style={{ fontSize: 11, color: isActive ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: isActive ? 600 : 400, fontFamily: 'var(--font-mono)' }}>
           {node.type}
         </span>
-        <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>{id.slice(-4)}</span>
+        <button
+          type='button'
+          title={node.isHidden ? 'Show node' : 'Hide node'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleVisibility(id)
+          }}
+          style={{
+            marginLeft: 'auto',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            fontSize: 12,
+            padding: 0,
+            lineHeight: 1,
+          }}
+        >
+          {node.isHidden ? '🚫' : '👁'}
+        </button>
+        <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>{id.slice(-4)}</span>
       </div>
       {open && isContainer && node.children.map((childId) => (
-        <LayerItem key={childId} id={childId} depth={depth + 1} nodesById={nodesById} selectedId={selectedId} onSelect={onSelect} />
+        <LayerItem
+          key={childId}
+          id={childId}
+          depth={depth + 1}
+          nodesById={nodesById}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onToggleVisibility={onToggleVisibility}
+        />
       ))}
     </div>
   )
@@ -202,6 +236,7 @@ export default function BlocksPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId)
   const addNode = useEditorStore((s) => s.addNode)
   const selectNode = useEditorStore((s) => s.selectNode)
+  const toggleNodeVisibility = useEditorStore((s) => s.toggleNodeVisibility)
   const enabledBlocks = useEditorStore((s) => s.builderConfig.blocks.enabled)
   const constraints = useEditorStore((s) => s.builderConfig.constraints)
 
@@ -315,7 +350,14 @@ export default function BlocksPanel() {
           <div style={{ display: 'grid', gap: 1 }}>
             <PanelTitle>Document Tree</PanelTitle>
             <Separator />
-            <LayerItem id={rootId} depth={0} nodesById={nodesById as Record<string, { type: string; children: string[] }>} selectedId={selectedNodeId} onSelect={selectNode} />
+            <LayerItem
+              id={rootId}
+              depth={0}
+              nodesById={nodesById as Record<string, { type: string; children: string[]; isHidden?: boolean }> }
+              selectedId={selectedNodeId}
+              onSelect={selectNode}
+              onToggleVisibility={toggleNodeVisibility}
+            />
           </div>
         )}
       </div>

@@ -35,6 +35,7 @@ export type NodesActions = {
   updateNodeStyleByBreakpoint: (id: NodeId, patch: Partial<StyleMap>, breakpoint?: Breakpoint) => void
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
+  toggleNodeVisibility: (id: NodeId) => void
 }
 
 export type FlowsActions = {
