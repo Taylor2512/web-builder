@@ -1,5 +1,6 @@
 import type { NodeRenderer } from './types'
 import { ErrorFallback } from './ErrorFallback'
+import type { DataTableColumn, Node as BuilderNode } from '../../types/schema'
 
 const formatValue = (value: unknown, format: string) => {
   if (format === 'currency' && typeof value === 'number') return `$${value.toFixed(2)}`
@@ -8,7 +9,7 @@ const formatValue = (value: unknown, format: string) => {
 }
 
 export const dataTableRenderer: NodeRenderer = ({ node, mode }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'dataTable' }>).props
   const issues: string[] = []
   if (props.columns.length === 0) issues.push('at least one column is required')
   if (props.pageSize < 1) issues.push('pageSize must be greater than 0')
@@ -35,7 +36,7 @@ export const dataTableRenderer: NodeRenderer = ({ node, mode }) => {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: props.dense ? 12 : 13 }}>
           <thead>
             <tr>
-              {props.columns.map((col: any) => (
+              {props.columns.map((col: DataTableColumn) => (
                 <th key={col.id} style={{ borderBottom: '1px solid #cbd5e1', textAlign: col.align, padding: 8 }}>
                   {col.header}
                 </th>
@@ -43,9 +44,9 @@ export const dataTableRenderer: NodeRenderer = ({ node, mode }) => {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((row: any, index: number) => (
+            {pageRows.map((row: Record<string, unknown>, index: number) => (
               <tr key={index} style={{ background: props.striped && index % 2 === 1 ? '#f8fafc' : 'transparent' }}>
-                {props.columns.map((col: any) => (
+                {props.columns.map((col: DataTableColumn) => (
                   <td key={col.id} style={{ textAlign: col.align, padding: props.dense ? 6 : 8, borderBottom: '1px solid #e2e8f0' }}>
                     {formatValue(row[col.accessor], col.format)}
                   </td>

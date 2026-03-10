@@ -21,8 +21,8 @@ export default function DataTableEditor({ node, updateProps }: Props) {
       <Toggle checked={node.props.searchable} label='Searchable' onChange={(v) => updateProps(node.id, { searchable: v })} />
       <Toggle checked={node.props.pagination} label='Pagination' onChange={(v) => updateProps(node.id, { pagination: v })} />
       <Toggle checked={node.props.selectableRows} label='Selectable rows' onChange={(v) => updateProps(node.id, { selectableRows: v })} />
-      <Field label='Columns JSON'><TextArea value={JSON.stringify(node.props.columns, null, 2)} onChange={(e) => { try { updateProps(node.id, { columns: JSON.parse(e.target.value) }) } catch {} }} /></Field>
-      <Field label='Rows JSON'><TextArea value={JSON.stringify(node.props.rows, null, 2)} onChange={(e) => { try { updateProps(node.id, { rows: JSON.parse(e.target.value) }) } catch {} }} /></Field>
+      <Field label='Columns JSON'><TextArea value={JSON.stringify(node.props.columns, null, 2)} onChange={(e) => { try { updateProps(node.id, { columns: JSON.parse(e.target.value) }) } catch { /* keep draft while JSON is invalid */ } }} /></Field>
+      <Field label='Rows JSON'><TextArea value={JSON.stringify(node.props.rows, null, 2)} onChange={(e) => { try { updateProps(node.id, { rows: JSON.parse(e.target.value) }) } catch { /* keep draft while JSON is invalid */ } }} /></Field>
     </>
   )
 }

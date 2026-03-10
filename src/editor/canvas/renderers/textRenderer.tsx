@@ -1,7 +1,8 @@
 import type { NodeRenderer } from './types'
+import type { Node as BuilderNode } from '../../types/schema'
 
 export const textRenderer: NodeRenderer = ({ node, mode, updateProps }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'text' }>).props
   const Tag = props.tag as keyof React.JSX.IntrinsicElements
   return {
     content: (

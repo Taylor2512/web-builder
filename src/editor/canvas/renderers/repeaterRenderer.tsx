@@ -1,10 +1,11 @@
 import type { NodeRenderer } from './types'
 import { ErrorFallback } from './ErrorFallback'
+import type { Node as BuilderNode } from '../../types/schema'
 
 const sampleCollection = [{ id: '1' }, { id: '2' }, { id: '3' }]
 
 export const repeaterRenderer: NodeRenderer = ({ node, mode, renderChildren }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'repeater' }>).props
   const issues: string[] = []
   if (!props.dataPath.trim()) issues.push('dataPath is required')
   if (!props.itemContextName.trim()) issues.push('itemContextName is required')

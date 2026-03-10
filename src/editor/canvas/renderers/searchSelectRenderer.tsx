@@ -1,5 +1,6 @@
 import type { NodeRenderer, RendererOutput } from './types'
 import { ErrorFallback } from './ErrorFallback'
+import type { Node as BuilderNode, SearchSelectOption } from '../../types/schema'
 
 const staticPreview = (placeholder: string, options: { id: string; label: string; value: string }[]) => (
   <select style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
@@ -13,7 +14,7 @@ const staticPreview = (placeholder: string, options: { id: string; label: string
 )
 
 export const searchSelectRenderer: NodeRenderer = ({ node, mode }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'searchSelect' }>).props
   const issues: string[] = []
   if (!props.name.trim()) issues.push('name is required')
 
@@ -32,7 +33,7 @@ export const searchSelectRenderer: NodeRenderer = ({ node, mode }) => {
 
   let preview: RendererOutput['content']
   if (props.source === 'static') {
-    preview = staticPreview(props.placeholder, props.options)
+    preview = staticPreview(props.placeholder, props.options as SearchSelectOption[])
   } else {
     preview = (
       <div style={{ border: '1px dashed #cbd5e1', borderRadius: 6, padding: 10, background: '#f8fafc', fontSize: 12 }}>

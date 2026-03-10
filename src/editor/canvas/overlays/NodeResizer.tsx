@@ -2,7 +2,7 @@ import { useEditorStore } from "../../state/useEditorStore";
 import { TYPE_COLOR } from "../styles/nodeColors";
 
 export function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) {
-  const updateNodeStyleByBreakpoint = useEditorStore((s) => s.updateNodeStyleByBreakpoint);
+  const updateStyle = useEditorStore((s) => s.updateStyle);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
 
   const handlePointerDown = (
@@ -32,7 +32,7 @@ export function NodeResizer({ id, nodeType }: { id: string; nodeType: string }) 
         updates.height = `${Math.max(20, initialHeight + deltaY)}px`;
       }
 
-      updateNodeStyleByBreakpoint(id, updates, activeBreakpoint);
+      updateStyle(id, updates, activeBreakpoint);
     };
 
     const onUp = () => {

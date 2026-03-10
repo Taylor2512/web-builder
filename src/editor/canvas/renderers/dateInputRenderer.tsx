@@ -1,5 +1,6 @@
 import type { NodeRenderer } from './types'
 import { ErrorFallback } from './ErrorFallback'
+import type { Node as BuilderNode } from '../../types/schema'
 
 const modeMap: Record<string, string> = {
   date: 'date',
@@ -10,7 +11,7 @@ const modeMap: Record<string, string> = {
 }
 
 export const dateInputRenderer: NodeRenderer = ({ node, mode }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'dateInput' }>).props
   const issues: string[] = []
   const inputType = modeMap[props.mode]
   if (!props.name.trim()) issues.push('name is required')

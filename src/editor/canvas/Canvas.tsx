@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -18,7 +19,9 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
   containerTypes,
+  sanitizeUrl,
   type Breakpoint,
+  type FormField,
   type Node,
   type NodeType,
 } from "../types/schema";
@@ -29,7 +32,6 @@ import {
   resolveBinding,
   type BindingError,
 } from "../bindings/resolveBinding";
-import { rendererRegistry } from "./renderers/rendererRegistry";
 
 type DragMeta = {
   id: string;
@@ -49,32 +51,6 @@ const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
     Object.assign(style, node.styleByBreakpoint[bpOrder[i]]);
   return style;
 };
-
-
-const scopeCustomCss = (nodeId: string, css: string) => {
-  if (!css.trim()) return ''
-  return css
-    .split('}')
-    .map((chunk) => {
-      const [selector, body] = chunk.split('{')
-      if (!selector || !body) return ''
-      const scopedSelector = selector
-        .split(',')
-        .map((item) => {
-          const normalized = item.trim()
-          if (!normalized) return ''
-          return normalized.includes('&')
-            ? normalized.replaceAll('&', `[data-node-id="${nodeId}"]`)
-            : `[data-node-id="${nodeId}"] ${normalized}`
-        })
-        .filter(Boolean)
-        .join(', ')
-      if (!scopedSelector) return ''
-      return `${scopedSelector} {${body}}`
-    })
-    .filter(Boolean)
-    .join('\n')
-}
 
 const validateField = (
   field: FormField,
@@ -218,14 +194,16 @@ const TYPE_COLOR: Record<string, string> = {
   repeater: "#f59e0b",
 };
 
-/* ── Edit-mode node toolbar ── */
-function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
-  const removeNode = useEditorStore((s) => s.removeNode);
-  const duplicateNode = useEditorStore((s) => s.duplicateNode);
-  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
-  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
-
-  const ToolBtn = ({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) => (
+function ToolbarButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
     <button
       onClick={onClick}
       title={title}
@@ -238,6 +216,14 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
       {children}
     </button>
   );
+}
+
+/* ── Edit-mode node toolbar ── */
+function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
+  const removeNode = useEditorStore((s) => s.removeNode);
+  const duplicateNode = useEditorStore((s) => s.duplicateNode);
+  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
+  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
 
   return (
     <div
@@ -280,15 +266,15 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
           background: "rgba(0,0,0,0.75)", borderRadius: "6px 6px 0 0",
           padding: "3px 5px", backdropFilter: "blur(6px)",
         }}>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolBtn>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolBtn>
-          <ToolBtn onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolBtn>
-          <ToolBtn
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolbarButton>
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolbarButton>
+          <ToolbarButton onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolbarButton>
+          <ToolbarButton
             onClick={() => { onDelete(); removeNode(node.id); }}
             title="Eliminar bloque"
           >
             <span style={{ color: "#fca5a5" }}>✕</span>
-          </ToolBtn>
+          </ToolbarButton>
         </div>
       )}
     </div>
@@ -400,7 +386,7 @@ function RenderNode({
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
   const updateProps = useEditorStore((s) => s.updateProps);
-  const submitForm = useEditorStore((s) => s.submitForm);
+  const [isEditingText, setIsEditingText] = useState(false);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
     setNodeRef: setSortableRef,
@@ -671,28 +657,59 @@ function RenderNode({
       />
     );
   }
-  const renderChildren = (keyPrefix = "") => (
-    <SortableContext items={node.children} strategy={rectSortingStrategy}>
-      {node.children.map((childId) => (
-        <RenderNode
-          key={`${keyPrefix}${childId}`}
-          id={childId}
-          hoveredDropId={hoveredDropId}
-          dragMeta={dragMeta}
-        />
-      ))}
-    </SortableContext>
-  );
 
-  const renderNodeByType = rendererRegistry[node.type];
-  const rendered = renderNodeByType({
-    node: node as never,
-    mode,
-    renderChildren,
-    updateProps,
-    submitForm,
-  });
-  const content = rendered.content;
+  if (node.type === "form") {
+    content =
+      mode === "preview" ? (
+        <FormPreview node={node} />
+      ) : (
+        <div
+          style={{
+            border: "1px dashed #e2e8f0",
+            borderRadius: 8,
+            padding: "12px 14px",
+            background: "rgba(99,102,241,0.03)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>✎</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: "#374151" }}>
+              Form
+            </span>
+            <span
+              style={{ fontSize: 11, color: "#6b7280", marginLeft: "auto" }}
+            >
+              {node.props.fields.length} field
+              {node.props.fields.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {node.props.fields.map((f) => (
+              <span
+                key={f.id}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: 99,
+                  background: "#ede9fe",
+                  color: "#7c3aed",
+                  fontSize: 11,
+                  fontWeight: 500,
+                }}
+              >
+                {f.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+  }
 
   const repeaterBinding =
     node.type === "repeater"
@@ -705,9 +722,12 @@ function RenderNode({
     .map((issue) => `${issue.prop}|${issue.expression}|${issue.message}`)
     .join(";");
 
+  /* eslint-disable react-hooks/exhaustive-deps */
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     onBindingIssues(node.id, nodeIssues);
   }, [node.id, onBindingIssues, issuesSignature]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   /* ── Border / selection style ── */
   const editBorder =
@@ -749,7 +769,6 @@ function RenderNode({
     >
       <div
         ref={setDroppableRef}
-        data-node-id={node.id}
         onClick={(event) => {
           event.stopPropagation();
           if (mode === "edit") selectNode(id);
@@ -807,7 +826,6 @@ function RenderNode({
             </div>
           )}
 
-        {node.customCss && <style>{scopeCustomCss(node.id, node.customCss)}</style>}
         {content}
 
         {node.type === "repeater" && mode === "preview" && Array.isArray(repeaterItems) ? (
@@ -839,7 +857,6 @@ function RenderNode({
             ))}
           </SortableContext>
         )}
-        {!rendered.handlesChildren && renderChildren()}
 
         {/* Drop insert overlay */}
         {showInsertHint && (
@@ -960,16 +977,15 @@ export default function Canvas() {
   }, [bindingIssues]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Backspace" || event.key === "Delete") {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Backspace" || e.key === "Delete") {
         const activeEl = document.activeElement as HTMLElement | null;
         if (
           activeEl?.tagName === "INPUT" ||
           activeEl?.tagName === "TEXTAREA" ||
           activeEl?.isContentEditable
-        ) {
+        )
           return;
-        }
 
         const state = useEditorStore.getState();
         if (state.mode === "edit" && state.selectedNodeId) {
@@ -980,11 +996,9 @@ export default function Canvas() {
         }
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
   const [hoveredDropId, setHoveredDropId] = useState<string | null>(null);
   const { viewport, zoomIn, zoomOut, resetViewport } = useViewport();
 
@@ -993,11 +1007,53 @@ export default function Canvas() {
   );
   const root = nodesById[rootId];
 
+  const findParentId = (childId: string) =>
+    Object.values(nodesById).find((n) => n.children.includes(childId))?.id;
+
+  const isDescendant = (ancestorId: string, targetId: string): boolean => {
+    const n = nodesById[ancestorId];
+    if (!n) return false;
+    if (n.children.includes(targetId)) return true;
+    return n.children.some((cId) => isDescendant(cId, targetId));
+  };
+
+  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
+    const allowed = builderConfig.constraints.allowedParents[childType];
+    return !allowed || allowed.includes(parentType);
+  };
+
+  const hasChildCapacity = (parentId: string) => {
+    const parent = nodesById[parentId];
+    if (!parent) return false;
+    const max = builderConfig.constraints.maxChildren[parent.type];
+    return typeof max !== "number" || parent.children.length < max;
+  };
+
+  const resolveDropParent = (overId: string | null) => {
+    if (!overId) return rootId;
+    if (overId.startsWith("drop-")) return overId.replace("drop-", "");
+    const overNode = nodesById[overId];
+    if (!overNode) return rootId;
+    if (containerTypes.includes(overNode.type)) return overNode.id;
+    return findParentId(overNode.id) ?? rootId;
+  };
+
+  const resolveDropIndex = (overId: string | null, parentId: string) => {
+    if (!overId || overId.startsWith("drop-")) return undefined;
+    const parentNode = nodesById[parentId];
+    if (!parentNode) return undefined;
+    const idx = parentNode.children.findIndex((c) => c === overId);
+    return idx >= 0 ? idx : undefined;
+  };
+
   const onDragStart = (event: DragStartEvent) => {
     setDragMeta({
       id: String(event.active.id),
-      blockType: event.active.data.current?.blockType as Node["type"] | undefined,
-      source: (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
+      blockType: event.active.data.current?.blockType as
+        | Node["type"]
+        | undefined,
+      source:
+        (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
     });
     setHoveredDropId(null);
   };
@@ -1005,42 +1061,31 @@ export default function Canvas() {
   const onDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id ? String(event.over.id) : null;
     if (!dragMeta) return;
-
-    const parentId = resolveDropParent(overId, nodesById, rootId);
+    const parentId = resolveDropParent(overId);
     const parentNode = nodesById[parentId];
     if (!parentNode) return;
 
     if (dragMeta.source === "palette" && dragMeta.blockType) {
-      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
+      const dropIndex = resolveDropIndex(overId, parentId);
       if (
-        isAllowedParent(
-          dragMeta.blockType,
-          parentNode.type,
-          builderConfig.constraints.allowedParents,
-        ) &&
-        hasChildCapacity(
-          parentId,
-          nodesById,
-          builderConfig.constraints.maxChildren,
-        )
+        isAllowedParent(dragMeta.blockType, parentNode.type) &&
+        hasChildCapacity(parentId)
       ) {
         addNode(parentId, buildNode(dragMeta.blockType), dropIndex);
       }
     }
 
     if (dragMeta.source === "canvas") {
-      if (
-        dragMeta.id === parentId ||
-        isDescendant(nodesById, dragMeta.id, parentId)
-      ) {
+      if (dragMeta.id === parentId || isDescendant(dragMeta.id, parentId)) {
         setDragMeta(null);
         return;
       }
-
-      const currentParentId = findParentId(nodesById, dragMeta.id);
-      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
+      const currentParentId = findParentId(dragMeta.id);
+      const dropIndex = resolveDropIndex(overId, parentId);
       if (currentParentId === parentId && dropIndex !== undefined) {
-        const currentIndex = parentNode.children.findIndex((c) => c === dragMeta.id);
+        const currentIndex = parentNode.children.findIndex(
+          (c) => c === dragMeta.id,
+        );
         moveNode(
           dragMeta.id,
           parentId,
@@ -1050,7 +1095,6 @@ export default function Canvas() {
         moveNode(dragMeta.id, parentId, dropIndex);
       }
     }
-
     setDragMeta(null);
     setHoveredDropId(null);
   };
@@ -1104,13 +1148,19 @@ export default function Canvas() {
         bindingContext={previewBindingContext}
         onBindingIssues={onBindingIssues}
       />
-      <RenderNode id={root.id} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
     </div>
   );
 
   if (mode === "preview") {
     return (
-      <div style={{ padding: 24, overflow: "auto", height: "100%", background: "#f1f5f9" }}>
+      <div
+        style={{
+          padding: 24,
+          overflow: "auto",
+          height: "100%",
+          background: "#f1f5f9",
+        }}
+      >
         {canvasFrame}
         {Object.values(bindingIssues).flat().length > 0 && (
           <div
@@ -1154,6 +1204,7 @@ export default function Canvas() {
           background: "#0e1520",
         }}
       >
+        {/* Zoom toolbar */}
         <div
           style={{
             display: "flex",
@@ -1209,7 +1260,10 @@ export default function Canvas() {
           )}
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>{canvasFrame}</div>
+        {/* Canvas scroll area */}
+        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>
+          {canvasFrame}
+        </div>
       </div>
 
       <DragOverlay dropAnimation={null}>

@@ -1,8 +1,9 @@
 import type { NodeRenderer } from './types'
 import { ErrorFallback } from './ErrorFallback'
+import type { Node as BuilderNode } from '../../types/schema'
 
 export const searchBarRenderer: NodeRenderer = ({ node, mode }) => {
-  const props = node.props as any
+  const props = (node as Extract<BuilderNode, { type: 'searchBar' }>).props
   const issues: string[] = []
   if (!props.targetQueryKey.trim()) issues.push('targetQueryKey is required')
   if (!props.mode) issues.push('mode is required')
