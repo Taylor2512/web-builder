@@ -8,6 +8,8 @@ export const TYPE_COLOR: Record<NodeType, string> = {
   text: "#f59e0b",
   image: "#ec4899",
   button: "#3b82f6",
+  link: "#4f46e5",
+  navbar: "#4f46e5",
   form: "#f97316",
   spacer: "#94a3b8",
   divider: "#94a3b8",

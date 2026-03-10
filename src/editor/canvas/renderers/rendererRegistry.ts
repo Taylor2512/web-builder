@@ -1,5 +1,5 @@
 import type { NodeType } from '../../types/schema'
-import { buttonRenderer, dividerRenderer, emptyRenderer, formRenderer, imageRenderer, spacerRenderer } from './basicRenderers'
+import { buttonRenderer, dividerRenderer, emptyRenderer, formRenderer, imageRenderer, linkRenderer, navbarRenderer, spacerRenderer } from './basicRenderers'
 import { dataTableRenderer } from './dataTableRenderer'
 import { dateInputRenderer } from './dateInputRenderer'
 import { repeaterRenderer } from './repeaterRenderer'
@@ -18,6 +18,8 @@ export const rendererRegistry: Record<NodeType, NodeRenderer> = {
   text: textRenderer,
   image: imageRenderer,
   button: buttonRenderer,
+  link: linkRenderer,
+  navbar: navbarRenderer,
   form: formRenderer,
   dateInput: dateInputRenderer,
   searchSelect: searchSelectRenderer,

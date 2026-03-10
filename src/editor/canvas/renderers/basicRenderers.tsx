@@ -18,6 +18,33 @@ export const buttonRenderer: NodeRenderer = ({ node }) => {
   }
 }
 
+export const linkRenderer: NodeRenderer = ({ node }) => {
+  const props = (node as Extract<BuilderNode, { type: 'link' }>).props
+  const href = props.path ?? '#'
+  return {
+    content: (
+      <a href={sanitizeUrl(href)} target={props.target} rel='noreferrer' style={{ color: '#4f46e5', textDecoration: 'underline', fontWeight: 600 }}>
+        {props.label || 'Link'}
+      </a>
+    ),
+  }
+}
+
+export const navbarRenderer: NodeRenderer = ({ node }) => {
+  const props = (node as Extract<BuilderNode, { type: 'navbar' }>).props
+  return {
+    content: (
+      <nav style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        {props.items.map((item) => (
+          <a key={item.id} href={sanitizeUrl(item.path ?? '#')} style={{ color: '#1f2937', textDecoration: 'none', fontWeight: 600 }}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    ),
+  }
+}
+
 export const imageRenderer: NodeRenderer = ({ node }) => {
   const props = (node as Extract<BuilderNode, { type: 'image' }>).props
   return {

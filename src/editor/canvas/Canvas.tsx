@@ -15,7 +15,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Link as RouterLink, useInRouterContext } from "react-router-dom";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
@@ -891,17 +891,6 @@ function RenderNode({
 
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode
-              key={childId}
-              id={childId}
-              hoveredDropId={hoveredDropId}
-              dragMeta={dragMeta}
-              pages={pages}
-            />
-          ))}
-        </SortableContext>
         {node.type === "repeater" && mode === "preview" && Array.isArray(repeaterItems) ? (
           (repeaterItems as unknown[]).map((item, index) => (
             <div key={`${node.id}-item-${index}`} style={{ marginBottom: 8 }}>
@@ -911,6 +900,7 @@ function RenderNode({
                   id={childId}
                   hoveredDropId={hoveredDropId}
                   dragMeta={dragMeta}
+                  pages={pages}
                   bindingContext={{ ...nodeBindingContext, [node.props.itemContextName]: item, index }}
                   onBindingIssues={onBindingIssues}
                 />
@@ -925,6 +915,7 @@ function RenderNode({
                 id={childId}
                 hoveredDropId={hoveredDropId}
                 dragMeta={dragMeta}
+                pages={pages}
                 bindingContext={nodeBindingContext}
                 onBindingIssues={onBindingIssues}
               />
@@ -1249,6 +1240,8 @@ export default function Canvas() {
               hoveredDropId={null}
               dragMeta={null}
               pages={pages}
+              bindingContext={previewBindingContext}
+              onBindingIssues={onBindingIssues}
             />
           )}
         />
