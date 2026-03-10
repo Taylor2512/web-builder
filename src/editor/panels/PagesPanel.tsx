@@ -125,7 +125,7 @@ export default function PagesPanel() {
             {tab === 'hidden' ? 'No hay páginas ocultas' : 'No hay páginas'}
           </div>
         )}
-        {visiblePages.map((page, index) => {
+        {visiblePages.map((page) => {
           const isActive   = page.id === activePageId
           const isEditing  = editingId === page.id
           const isHidden   = hiddenIds.has(page.id)

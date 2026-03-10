@@ -49,6 +49,12 @@ npm install
 npm run dev
 ```
 
+### Desarrollo completo (frontend + json-server)
+
+```bash
+npm run dev:full
+```
+
 ### Servidor JSON (opcional, para persistencia remota)
 
 ```bash
@@ -455,3 +461,30 @@ Módulos en evolución:
 - paneles alternativos (`pages/design`) aún sin montar en el shell principal actual,
 - mejora de accesibilidad avanzada (teclado/ARIA),
 - roadmap de features Wix-like adicionales.
+
+## 10) Deploy en Vercel desde GitHub
+
+El repositorio incluye configuración lista para Vercel:
+
+- `vercel.json` para build de Vite + fallback SPA.
+- función serverless `api/[...path].ts` que levanta `json-server` con `db.json`.
+- cliente configurado para usar `/api` automáticamente en producción.
+
+### Pasos
+
+1. Importa el repositorio en Vercel (GitHub Integration).
+2. Framework: **Vite** (detectado automáticamente).
+3. Build Command: `npm run build` (ya definido).
+4. Output Directory: `dist` (ya definido).
+5. Deploy.
+
+### Endpoint API en producción
+
+En Vercel, los endpoints quedan bajo `/api`, por ejemplo:
+
+- `GET /api/projects/p1`
+- `PUT /api/projects/p1`
+- `POST /api/submissions`
+- `GET /api/builderConfig`
+
+> Nota: en Serverless, la escritura en `db.json` es efímera. Para persistencia real en producción, migra a una base de datos externa.

@@ -1,7 +1,8 @@
 import type { BuilderConfig } from '../config/loadBuilderConfig'
 import type { EditorProject } from '../types/schema'
 
-const API_BASE = import.meta.env.VITE_JSON_SERVER_URL ?? 'http://localhost:3001'
+const API_BASE =
+  import.meta.env.VITE_JSON_SERVER_URL ?? (import.meta.env.PROD ? '/api' : 'http://localhost:3001')
 const PROJECT_ID = 'p1'
 
 type ProjectRecord = {

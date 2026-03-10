@@ -37,7 +37,6 @@ export default function FormBuilder() {
   const site = useEditorStore((s) => s.site)
   const rootId = useEditorStore((s) => s.rootId)
   const ui = useEditorStore((s) => s.ui)
-  const toggleLeftPanel = useEditorStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel)
   const togglePanels = useEditorStore((s) => s.togglePanels)
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode)

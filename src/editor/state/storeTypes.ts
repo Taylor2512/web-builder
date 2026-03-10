@@ -23,7 +23,7 @@ export type SubmissionMap = Record<string, SubmissionEntry[]>
 export type SiteActions = {
   addPage: (name: string, path: string) => void
   selectPage: (pageId: string) => void
-  updatePage: (pageId: string, patch: Partial<Pick<PageDef, 'name' | 'path' | 'title'>>) => void
+  updatePage: (pageId: string, patch: Partial<Pick<PageDef, 'name' | 'path' | 'title' | 'meta'>>) => void
   removePage: (pageId: string) => void
 }
 
