@@ -1,6 +1,7 @@
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useEffect, type ReactNode } from 'react'
 import type { PageDef } from '../types/schema'
+import { normalizePagePath } from '../state/sitePaths'
 
 type PreviewRouterProps = {
   pages: PageDef[]
@@ -13,7 +14,8 @@ function RouteSync({ pages, onRoutePageChange }: { pages: PageDef[]; onRoutePage
   const location = useLocation()
 
   useEffect(() => {
-    const matched = pages.find((page) => page.path === location.pathname)
+    const pathname = normalizePagePath(location.pathname)
+    const matched = pages.find((page) => normalizePagePath(page.path) === pathname)
     if (matched) onRoutePageChange(matched.id)
   }, [location.pathname, onRoutePageChange, pages])
 
@@ -21,17 +23,19 @@ function RouteSync({ pages, onRoutePageChange }: { pages: PageDef[]; onRoutePage
 }
 
 export default function PreviewRouter({ pages, activePageId, onRoutePageChange, renderPageTree }: PreviewRouterProps) {
-  const activePage = pages.find((page) => page.id === activePageId) ?? pages[0]
+  const normalizedPages = pages.map((page) => ({ ...page, path: normalizePagePath(page.path, page.id) }))
+  const uniquePages = normalizedPages.filter((page, index, all) => all.findIndex((item) => item.path === page.path) === index)
+  const activePage = uniquePages.find((page) => page.id === activePageId) ?? uniquePages[0]
   const initialPath = activePage?.path || '/'
 
   return (
     <MemoryRouter initialEntries={[initialPath]}>
-      <RouteSync pages={pages} onRoutePageChange={onRoutePageChange} />
+      <RouteSync pages={uniquePages} onRoutePageChange={onRoutePageChange} />
       <Routes>
-        {pages.map((page) => (
+        {uniquePages.map((page) => (
           <Route key={page.id} path={page.path} element={<>{renderPageTree(page.rootId)}</>} />
         ))}
-        <Route path='*' element={<Navigate to={pages[0]?.path || '/'} replace />} />
+        <Route path='*' element={<Navigate to={uniquePages[0]?.path || '/'} replace />} />
       </Routes>
     </MemoryRouter>
   )

@@ -116,6 +116,78 @@ export const createPersistenceSlice: StateCreator<EditorStore, [], [], Persisten
     set({ builderConfig })
   },
 
+
+  undo() {
+    set(
+      produce((state: EditorStore) => {
+        if (state.historyPast.length < 2) return
+        const current = state.historyPast[state.historyPast.length - 1]
+        const previous = state.historyPast[state.historyPast.length - 2]
+        state.projectName = previous.projectName
+        state.rootId = previous.rootId
+        state.nodesById = structuredClone(previous.nodesById)
+        state.mode = previous.mode
+        state.flows = structuredClone(previous.flows)
+        state.site = structuredClone(previous.site)
+        state.ui = structuredClone(previous.ui)
+        state.selectedNodeId = null
+        state.historyPast = state.historyPast.slice(0, -1)
+        state.historyFuture = [current, ...state.historyFuture]
+      }),
+    )
+    get().persistProject()
+  },
+
+  redo() {
+    set(
+      produce((state: EditorStore) => {
+        if (!state.historyFuture.length) return
+        const next = state.historyFuture[0]
+        state.projectName = next.projectName
+        state.rootId = next.rootId
+        state.nodesById = structuredClone(next.nodesById)
+        state.mode = next.mode
+        state.flows = structuredClone(next.flows)
+        state.site = structuredClone(next.site)
+        state.ui = structuredClone(next.ui)
+        state.selectedNodeId = null
+        state.historyPast.push(next)
+        state.historyFuture = state.historyFuture.slice(1)
+      }),
+    )
+    get().persistProject()
+  },
+
+  createPublishSnapshot(label) {
+    const state = get()
+    const snapshot = projectSnapshot(state)
+    set(
+      produce((draft: EditorStore) => {
+        draft.publishSnapshots = [
+          { id: `pub-${Date.now().toString(36)}`, label: label || 'Publicación', timestamp: new Date().toISOString(), snapshot },
+          ...draft.publishSnapshots,
+        ].slice(0, 20)
+      }),
+    )
+  },
+
+  restorePublishSnapshot(snapshotId) {
+    set(
+      produce((state: EditorStore) => {
+        const snapshot = state.publishSnapshots.find((item) => item.id === snapshotId)?.snapshot
+        if (!snapshot) return
+        state.projectName = snapshot.projectName
+        state.rootId = snapshot.rootId
+        state.nodesById = structuredClone(snapshot.nodesById)
+        state.mode = snapshot.mode
+        state.flows = structuredClone(snapshot.flows)
+        state.site = structuredClone(snapshot.site)
+        state.ui = structuredClone(snapshot.ui)
+        state.selectedNodeId = null
+      }),
+    )
+    get().persistProject()
+  },
   submitForm(formId, value) {
     const state = get()
     const timestamp = new Date().toISOString()

@@ -107,6 +107,15 @@ export type PageDef = {
   path: string
   rootId: NodeId
   title?: string
+  meta?: {
+    description?: string
+    keywords?: string
+    canonicalUrl?: string
+    ogTitle?: string
+    ogDescription?: string
+    ogImage?: string
+    noIndex?: boolean
+  }
   meta?: SeoMetadata
 }
 
@@ -416,7 +425,19 @@ export const baseTemplate = (): EditorProject => {
   section.children = [heading.id, paragraph.id]
 
   const flow = createDefaultFlow('flow-main', 'Main Flow')
-  const homePage: PageDef = { id: 'page-home', name: 'Home', path: '/', rootId: page.id, title: 'Home' }
+  const homePage: PageDef = {
+    id: 'page-home',
+    name: 'Home',
+    path: '/',
+    rootId: page.id,
+    title: 'Home',
+    meta: {
+      description: 'Página principal del sitio',
+      ogTitle: 'Home',
+      ogDescription: 'Página principal del sitio',
+      noIndex: false,
+    },
+  }
 
   return {
     projectName: 'My Web Builder Project',

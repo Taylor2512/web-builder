@@ -16,17 +16,23 @@ import {
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
 import { saveRemoteSubmission } from '../api/jsonServer'
+import { ensureUniquePath, normalizePagePath } from './sitePaths'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
 
 type SubmissionMap = Record<string, unknown[]>
 
+type PublishSnapshot = { id: string; label: string; timestamp: string; project: EditorProject }
+
 type EditorState = EditorProject & {
   selectedNodeId: NodeId | null
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
   builderConfig: BuilderConfig
+  historyPast: EditorProject[]
+  historyFuture: EditorProject[]
+  publishSnapshots: PublishSnapshot[]
   addNode: (parentId: NodeId, node: Node, index?: number) => void
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
@@ -67,6 +73,10 @@ type EditorState = EditorProject & {
   toggleNodeVisibility: (id: NodeId) => void
   showNode: (id: NodeId) => void
   showAllNodes: () => void
+  undo: () => void
+  redo: () => void
+  createPublishSnapshot: (label?: string) => void
+  restorePublishSnapshot: (snapshotId: string) => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -93,7 +103,7 @@ const activeRootId = (state: EditorProject) => {
 const normalizeSite = (project: EditorProject): EditorProject['site'] => {
   const pages = (project.site?.pages ?? []).map((page) => ({
     ...page,
-    path: page.path?.startsWith('/') ? page.path : `/${page.path || page.id}`,
+    path: normalizePagePath(page.path || page.id, page.id),
     meta: page.meta ? { ...page.meta } : undefined,
   }))
 
@@ -133,10 +143,22 @@ export const projectSnapshot = (state: EditorProject): EditorProject => ({
   ui: state.ui,
 })
 
-const withAutosave = (state: EditorState) => {
+const withAutosave = (state: EditorState, set: any) => {
   const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
+
+  set(
+    produce((draft: EditorState) => {
+      const last = draft.historyPast[draft.historyPast.length - 1]
+      const isSame = last ? JSON.stringify(last) === JSON.stringify(payload) : false
+      if (!isSame) {
+        draft.historyPast.push(structuredClone(payload))
+        if (draft.historyPast.length > 80) draft.historyPast.shift()
+      }
+      draft.historyFuture = []
+    }),
+  )
 }
 
 const fallbackTemplate = baseTemplate()
@@ -150,12 +172,23 @@ const initialProject: EditorProject = {
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
 
+const PUBLICATION_SNAPSHOTS_KEY = 'web-builder-publication-snapshots-v1'
+const initialHistory = [structuredClone(initialProject)]
+const initialPublishSnapshots = safeParse<PublishSnapshot[]>(localStorage.getItem(PUBLICATION_SNAPSHOTS_KEY), [])
+
+const persistPublicationSnapshots = (snapshots: PublishSnapshot[]) => {
+  localStorage.setItem(PUBLICATION_SNAPSHOTS_KEY, JSON.stringify(snapshots))
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProject,
   selectedNodeId: null,
   activeBreakpoint: 'desktop',
   submissions: initialSubmissions,
   builderConfig: defaultBuilderConfig,
+  historyPast: initialHistory,
+  historyFuture: [],
+  publishSnapshots: initialPublishSnapshots,
 
   addNode(parentId, node, index) {
     set(
@@ -168,7 +201,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.selectedNodeId = node.id
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   removeNode(id) {
@@ -182,7 +215,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (state.selectedNodeId === id) state.selectedNodeId = null
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   moveNode(id, newParentId, index) {
@@ -198,7 +231,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         parent.children.splice(nextIndex, 0, id)
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   updateProps(id, patch) {
@@ -209,7 +242,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.props = { ...node.props, ...patch } as Node['props']
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
 
@@ -221,7 +254,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.props = nextProps as Node['props']
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setCustomCss(id, customCss) {
@@ -232,7 +265,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.customCss = customCss
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setBindings(id, bindings) {
@@ -243,7 +276,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.bindings = bindings
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   updateStyle(id, patch, breakpoint) {
@@ -255,7 +288,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.styleByBreakpoint[bp] = { ...node.styleByBreakpoint[bp], ...patch }
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   selectNode(id) {
@@ -264,7 +297,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setMode(mode) {
     set({ mode })
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setBreakpoint(activeBreakpoint) {
@@ -273,39 +306,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   toggleLeftPanel() {
     set((state) => ({ ui: { ...state.ui, leftPanelOpen: !state.ui.leftPanelOpen } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   toggleRightPanel() {
     set((state) => ({ ui: { ...state.ui, rightPanelOpen: !state.ui.rightPanelOpen } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   togglePanels() {
     const { leftPanelOpen, rightPanelOpen } = get().ui
     const nextOpen = !(leftPanelOpen && rightPanelOpen)
     set((state) => ({ ui: { ...state.ui, leftPanelOpen: nextOpen, rightPanelOpen: nextOpen } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setLeftPanelWidth(width) {
     set((state) => ({ ui: { ...state.ui, leftPanelWidth: clampPanelWidth(width) } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setRightPanelWidth(width) {
     set((state) => ({ ui: { ...state.ui, rightPanelWidth: clampPanelWidth(width) } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   toggleFocusMode() {
     set((state) => ({ ui: { ...state.ui, focusMode: !state.ui.focusMode } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setFocusMode(focusMode) {
     set((state) => ({ ui: { ...state.ui, focusMode } }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setActiveLeftPanel(panel) {
@@ -316,12 +349,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         leftPanelOpen: panel !== null,
       },
     }))
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setProjectName(projectName) {
     set({ projectName })
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   serialize() {
@@ -338,12 +371,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ui: normalizeUi(payload),
     }
     set({ ...ensured, selectedNodeId: null })
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   reset() {
     set({ ...baseTemplate(), selectedNodeId: null, submissions: {} })
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   setBuilderConfig(builderConfig) {
@@ -360,7 +393,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.flows.activeFlowId = id
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   deleteFlow(id) {
@@ -374,7 +407,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   selectFlow(id) {
@@ -394,7 +427,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         flow.updatedAt = new Date().toISOString()
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   upsertFlowVariable(flowId, key, variable) {
@@ -406,7 +439,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         flow.updatedAt = new Date().toISOString()
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   removeFlowVariable(flowId, key) {
@@ -418,7 +451,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         flow.updatedAt = new Date().toISOString()
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   addPage(name, path) {
@@ -432,14 +465,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.nodesById[section.id] = section
 
         const pageId = `page-${createId()}`
-        const safePath = path.startsWith('/') ? path : `/${path || pageId}`
-        const nextPage: PageDef = { id: pageId, name: name || 'New Page', path: safePath, rootId: root.id, title: name || 'New Page' }
+        const normalized = normalizePagePath(path || name || pageId, pageId)
+        const safePath = ensureUniquePath(normalized, state.site.pages)
+        const pageName = name || 'New Page'
+        const nextPage: PageDef = {
+          id: pageId,
+          name: pageName,
+          path: safePath,
+          rootId: root.id,
+          title: pageName,
+          meta: { description: '', ogTitle: pageName, ogDescription: '', noIndex: false },
+        }
         state.site.pages.push(nextPage)
         state.site.activePageId = pageId
         state.rootId = root.id
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   selectPage(pageId) {
@@ -460,11 +502,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const page = state.site.pages.find((item) => item.id === pageId)
         if (!page) return
         if (patch.name !== undefined) page.name = patch.name
-        if (patch.path !== undefined) page.path = patch.path.startsWith('/') ? patch.path : `/${patch.path}`
+        if (patch.path !== undefined) {
+          const normalized = normalizePagePath(patch.path, page.name || page.id)
+          page.path = ensureUniquePath(normalized, state.site.pages, page.id)
+        }
         if (patch.title !== undefined) page.title = patch.title
+        if (patch.meta !== undefined) page.meta = { ...page.meta, ...patch.meta }
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   removePage(pageId) {
@@ -479,7 +525,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.rootId = next.rootId
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   duplicateNode(id) {
@@ -507,7 +553,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.selectedNodeId = newNodeId
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   moveNodeSibling(id, direction) {
@@ -523,7 +569,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
 
@@ -535,7 +581,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.isHidden = !node.isHidden
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   showNode(id) {
@@ -546,7 +592,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         node.isHidden = false
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   showAllNodes() {
@@ -557,7 +603,86 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         })
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
+  },
+
+  undo() {
+    const state = get()
+    if (state.historyPast.length < 2) return
+    const current = state.historyPast[state.historyPast.length - 1]
+    const previous = state.historyPast[state.historyPast.length - 2]
+    set(
+      produce((draft: EditorState) => {
+        draft.projectName = previous.projectName
+        draft.rootId = previous.rootId
+        draft.nodesById = structuredClone(previous.nodesById)
+        draft.mode = previous.mode
+        draft.flows = structuredClone(previous.flows)
+        draft.site = structuredClone(previous.site)
+        draft.ui = structuredClone(previous.ui)
+        draft.selectedNodeId = null
+        draft.historyPast = draft.historyPast.slice(0, -1)
+        draft.historyFuture = [structuredClone(current), ...draft.historyFuture]
+      }),
+    )
+    const latest = get()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projectSnapshot(latest)))
+  },
+
+  redo() {
+    const state = get()
+    if (!state.historyFuture.length) return
+    const next = state.historyFuture[0]
+    set(
+      produce((draft: EditorState) => {
+        draft.projectName = next.projectName
+        draft.rootId = next.rootId
+        draft.nodesById = structuredClone(next.nodesById)
+        draft.mode = next.mode
+        draft.flows = structuredClone(next.flows)
+        draft.site = structuredClone(next.site)
+        draft.ui = structuredClone(next.ui)
+        draft.selectedNodeId = null
+        draft.historyPast.push(structuredClone(next))
+        draft.historyFuture = draft.historyFuture.slice(1)
+      }),
+    )
+    const latest = get()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projectSnapshot(latest)))
+  },
+
+  createPublishSnapshot(label) {
+    const state = get()
+    const snapshot: PublishSnapshot = {
+      id: `pub-${createId()}`,
+      label: label?.trim() || `Snapshot ${new Date().toLocaleString()}`,
+      timestamp: new Date().toISOString(),
+      project: projectSnapshot(state),
+    }
+    set(
+      produce((draft: EditorState) => {
+        draft.publishSnapshots = [snapshot, ...draft.publishSnapshots].slice(0, 20)
+      }),
+    )
+    persistPublicationSnapshots(get().publishSnapshots)
+  },
+
+  restorePublishSnapshot(snapshotId) {
+    const snapshot = get().publishSnapshots.find((item) => item.id === snapshotId)
+    if (!snapshot) return
+    set(
+      produce((draft: EditorState) => {
+        draft.projectName = snapshot.project.projectName
+        draft.rootId = snapshot.project.rootId
+        draft.nodesById = structuredClone(snapshot.project.nodesById)
+        draft.mode = snapshot.project.mode
+        draft.flows = structuredClone(snapshot.project.flows)
+        draft.site = structuredClone(snapshot.project.site)
+        draft.ui = structuredClone(snapshot.project.ui)
+        draft.selectedNodeId = null
+      }),
+    )
+    withAutosave(get(), set)
   },
 
   submitForm(formId, value) {
@@ -577,7 +702,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }).catch(() => {
       // keep local submission even if json-server is down
     })
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 }))
 

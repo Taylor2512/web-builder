@@ -1,6 +1,7 @@
 import { produce } from 'immer'
 import type { StateCreator } from 'zustand'
 import { createId, createNode, type PageDef } from '../../types/schema'
+import { ensureUniquePath, normalizePagePath } from '../sitePaths'
 import type { EditorStore, SiteActions } from '../storeTypes'
 
 export const createSiteSlice: StateCreator<EditorStore, [], [], SiteActions> = (set, get) => ({
@@ -15,8 +16,22 @@ export const createSiteSlice: StateCreator<EditorStore, [], [], SiteActions> = (
         state.nodesById[section.id] = section
 
         const pageId = `page-${createId()}`
-        const safePath = path.startsWith('/') ? path : `/${path || pageId}`
-        const nextPage: PageDef = { id: pageId, name: name || 'New Page', path: safePath, rootId: root.id, title: name || 'New Page' }
+        const normalized = normalizePagePath(path || name || pageId, pageId)
+        const safePath = ensureUniquePath(normalized, state.site.pages)
+        const pageName = name || 'New Page'
+        const nextPage: PageDef = {
+          id: pageId,
+          name: pageName,
+          path: safePath,
+          rootId: root.id,
+          title: pageName,
+          meta: {
+            description: '',
+            ogTitle: pageName,
+            ogDescription: '',
+            noIndex: false,
+          },
+        }
         state.site.pages.push(nextPage)
         state.site.activePageId = pageId
         state.rootId = root.id
@@ -43,9 +58,12 @@ export const createSiteSlice: StateCreator<EditorStore, [], [], SiteActions> = (
         const page = state.site.pages.find((item) => item.id === pageId)
         if (!page) return
         if (patch.name !== undefined) page.name = patch.name
-        if (patch.path !== undefined) page.path = patch.path.startsWith('/') ? patch.path : `/${patch.path}`
+        if (patch.path !== undefined) {
+          const normalized = normalizePagePath(patch.path, page.name || page.id)
+          page.path = ensureUniquePath(normalized, state.site.pages, page.id)
+        }
         if (patch.title !== undefined) page.title = patch.title
-        if (patch.meta !== undefined) page.meta = patch.meta
+        if (patch.meta !== undefined) page.meta = { ...page.meta, ...patch.meta }
       }),
     )
     get().persistProject()
