@@ -1,3 +1,4 @@
+import { loadRemoteBuilderConfig } from '../api/jsonServer'
 import type { Breakpoint, NodeType } from '../types/schema'
 
 export type BuilderConfig = {
@@ -81,6 +82,13 @@ export const validateBuilderConfig = (raw: unknown): BuilderConfig => {
 }
 
 export const loadBuilderConfig = async (): Promise<BuilderConfig> => {
+  try {
+    const remote = await loadRemoteBuilderConfig()
+    return validateBuilderConfig(remote)
+  } catch {
+    // fallback to static config for local-only usage
+  }
+
   try {
     const response = await fetch('/builder.config.json')
     if (!response.ok) {

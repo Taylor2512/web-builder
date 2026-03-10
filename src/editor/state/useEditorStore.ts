@@ -15,6 +15,7 @@ import {
 } from '../types/schema'
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
+import { saveRemoteSubmission } from '../api/jsonServer'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
@@ -30,6 +31,9 @@ type EditorState = EditorProject & {
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
   updateProps: (id: NodeId, patch: Record<string, unknown>) => void
+  replaceProps: (id: NodeId, nextProps: unknown) => void
+  setCustomCss: (id: NodeId, customCss: string) => void
+  setBindings: (id: NodeId, bindings: { id: string; targetPath: string; sourcePath: string }[]) => void
   updateStyle: (id: NodeId, patch: Record<string, string | number | undefined>, breakpoint?: Breakpoint) => void
   selectNode: (id: NodeId | null) => void
   setMode: (mode: EditorMode) => void
@@ -50,6 +54,8 @@ type EditorState = EditorProject & {
   selectPage: (pageId: string) => void
   updatePage: (pageId: string, patch: Partial<Pick<PageDef, 'name' | 'path' | 'title'>>) => void
   removePage: (pageId: string) => void
+  duplicateNode: (id: NodeId) => void
+  moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -89,6 +95,17 @@ const withAutosave = (state: EditorState) => {
     flows: state.flows,
     site: state.site,
   }
+export const projectSnapshot = (state: EditorProject): EditorProject => ({
+  projectName: state.projectName,
+  rootId: activeRootId(state),
+  nodesById: state.nodesById,
+  mode: state.mode,
+  flows: state.flows,
+  site: state.site,
+})
+
+const withAutosave = (state: EditorState) => {
+  const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
 }
@@ -162,6 +179,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const node = state.nodesById[id]
         if (!node) return
         node.props = { ...node.props, ...patch } as Node['props']
+      }),
+    )
+    withAutosave(get())
+  },
+
+
+  replaceProps(id, nextProps) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.props = nextProps as Node['props']
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setCustomCss(id, customCss) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.customCss = customCss
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setBindings(id, bindings) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.bindings = bindings
       }),
     )
     withAutosave(get())
@@ -350,6 +401,146 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+    return JSON.stringify(projectSnapshot(state), null, 2)
+  },
+
+  hydrate(json) {
+    const payload = safeParse<EditorProject>(json, baseTemplate())
+    const ensured = {
+      ...payload,
+      flows: payload.flows ?? baseTemplate().flows,
+      site: payload.site ?? baseTemplate().site,
+    }
+    set({ ...ensured, selectedNodeId: null })
+    withAutosave(get())
+  },
+
+  reset() {
+    set({ ...baseTemplate(), selectedNodeId: null, submissions: {} })
+    withAutosave(get())
+  },
+
+  setBuilderConfig(builderConfig) {
+    set({ builderConfig })
+  },
+
+  createFlow(name) {
+    set(
+      produce((state: EditorState) => {
+        const id = `flow-${createId()}`
+        const flow = createDefaultFlow(id, name || 'Untitled Flow')
+        state.flows.flowsById[id] = flow
+        state.flows.flowOrder.push(id)
+        state.flows.activeFlowId = id
+      }),
+    )
+    withAutosave(get())
+  },
+
+  deleteFlow(id) {
+    set(
+      produce((state: EditorState) => {
+        if (!state.flows.flowsById[id]) return
+        delete state.flows.flowsById[id]
+        state.flows.flowOrder = state.flows.flowOrder.filter((flowId) => flowId !== id)
+        if (state.flows.activeFlowId === id) {
+          state.flows.activeFlowId = state.flows.flowOrder[0] ?? null
+        }
+      }),
+    )
+    withAutosave(get())
+  },
+
+  selectFlow(id) {
+    set(
+      produce((state: EditorState) => {
+        state.flows.activeFlowId = id
+      }),
+    )
+  },
+
+  renameFlow(id, name) {
+    set(
+      produce((state: EditorState) => {
+        const flow: FlowDefinition | undefined = state.flows.flowsById[id]
+        if (!flow) return
+        flow.name = name
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  upsertFlowVariable(flowId, key, variable) {
+    set(
+      produce((state: EditorState) => {
+        const flow = state.flows.flowsById[flowId]
+        if (!flow || !key.trim()) return
+        flow.variables[key.trim()] = variable
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removeFlowVariable(flowId, key) {
+    set(
+      produce((state: EditorState) => {
+        const flow = state.flows.flowsById[flowId]
+        if (!flow) return
+        delete flow.variables[key]
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+    withAutosave(get())
+  },
+
+  addPage(name, path) {
+    set(
+      produce((state: EditorState) => {
+        const root = createNode('page', `page-root-${createId()}`)
+        const section = createNode('section')
+        section.children = []
+        root.children = [section.id]
+        state.nodesById[root.id] = root
+        state.nodesById[section.id] = section
+
+        const pageId = `page-${createId()}`
+        const safePath = path.startsWith('/') ? path : `/${path || pageId}`
+        const nextPage: PageDef = { id: pageId, name: name || 'New Page', path: safePath, rootId: root.id, title: name || 'New Page' }
+        state.site.pages.push(nextPage)
+        state.site.activePageId = pageId
+        state.rootId = root.id
+      }),
+    )
+    withAutosave(get())
+  },
+
+  selectPage(pageId) {
+    set(
+      produce((state: EditorState) => {
+        const page = state.site.pages.find((item) => item.id === pageId)
+        if (!page) return
+        state.site.activePageId = pageId
+        state.rootId = page.rootId
+        state.selectedNodeId = null
+      }),
+    )
+  },
+
+  updatePage(pageId, patch) {
+    set(
+      produce((state: EditorState) => {
+        const page = state.site.pages.find((item) => item.id === pageId)
+        if (!page) return
+        if (patch.name !== undefined) page.name = patch.name
+        if (patch.path !== undefined) page.path = patch.path.startsWith('/') ? patch.path : `/${patch.path}`
+        if (patch.title !== undefined) page.title = patch.title
+      }),
+    )
+    withAutosave(get())
+  },
+
   removePage(pageId) {
     set(
       produce((state: EditorState) => {
@@ -365,6 +556,50 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+  duplicateNode(id) {
+    set(
+      produce((state: EditorState) => {
+        if (id === activeRootId(state)) return
+        const cloneDeep = (nodeId: string): string => {
+          const node = state.nodesById[nodeId]
+          if (!node) return nodeId
+          const newId = createId()
+          const cloned = {
+            ...structuredClone(node),
+            id: newId,
+            children: node.children.map(cloneDeep),
+          }
+          state.nodesById[newId] = cloned as Node
+          return newId
+        }
+        const newNodeId = cloneDeep(id)
+        const parent = Object.values(state.nodesById).find((n) => n.children.includes(id))
+        if (parent) {
+          const idx = parent.children.indexOf(id)
+          parent.children.splice(idx + 1, 0, newNodeId)
+        }
+        state.selectedNodeId = newNodeId
+      }),
+    )
+    withAutosave(get())
+  },
+
+  moveNodeSibling(id, direction) {
+    set(
+      produce((state: EditorState) => {
+        const parent = Object.values(state.nodesById).find((n) => n.children.includes(id))
+        if (!parent) return
+        const idx = parent.children.indexOf(id)
+        if (direction === 'up' && idx > 0) {
+          ;[parent.children[idx - 1], parent.children[idx]] = [parent.children[idx], parent.children[idx - 1]]
+        } else if (direction === 'down' && idx < parent.children.length - 1) {
+          ;[parent.children[idx + 1], parent.children[idx]] = [parent.children[idx], parent.children[idx + 1]]
+        }
+      }),
+    )
+    withAutosave(get())
+  },
+
   submitForm(formId, value) {
     set(
       produce((state: EditorState) => {
@@ -373,6 +608,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.submissions[key] = [...current, value]
       }),
     )
+    const state = get()
+    void saveRemoteSubmission({
+      pageId: state.site.activePageId,
+      formId,
+      payload: value,
+      createdAt: new Date().toISOString(),
+    }).catch(() => {
+      // keep local submission even if json-server is down
+    })
     withAutosave(get())
   },
 }))
