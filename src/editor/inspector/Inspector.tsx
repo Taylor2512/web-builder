@@ -5,7 +5,6 @@ import {
   Card, ColorInput, DangerButton, Field, GhostButton,
   IconButton, PanelTitle, Separator, Slider, StyledSelect, TextArea, TextInput, Toggle,
 } from '../../shared/ui'
-import type React from 'react'
 
 const fieldTypes: FormFieldType[] = ['text', 'textarea', 'email', 'number', 'password', 'tel', 'url', 'date', 'time', 'datetime-local', 'select', 'radio', 'checkbox', 'switch', 'range', 'file', 'color']
 
