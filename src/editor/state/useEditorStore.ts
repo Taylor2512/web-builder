@@ -73,6 +73,13 @@ const activeRootId = (state: EditorProject) => {
   return activePage?.rootId ?? state.rootId
 }
 
+const isDescendantOf = (nodesById: NodesById, ancestorId: NodeId, targetId: NodeId): boolean => {
+  const ancestor = nodesById[ancestorId]
+  if (!ancestor) return false
+  if (ancestor.children.includes(targetId)) return true
+  return ancestor.children.some((childId) => isDescendantOf(nodesById, childId, targetId))
+}
+
 const withAutosave = (state: EditorState) => {
   const payload: EditorProject = {
     projectName: state.projectName,
@@ -135,6 +142,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set(
       produce((state: EditorState) => {
         if (id === activeRootId(state)) return
+        if (id === newParentId) return
+        if (isDescendantOf(state.nodesById, id, newParentId)) return
         const parent = state.nodesById[newParentId]
         if (!parent) return
         Object.values(state.nodesById).forEach((node) => {
