@@ -1,5 +1,7 @@
-import { Field, StyledSelect, TextArea, TextInput, Toggle } from '../../../shared/ui'
+import { Field, StyledSelect, TextInput, Toggle } from '../../../shared/ui'
 import type { Node as BuilderNode } from '../../types/schema'
+import JsonDraftField from './components/JsonDraftField'
+import { useNodePropUpdater } from './helpers'
 
 type Props = {
   node: Extract<BuilderNode, { type: 'dataTable' }>
@@ -7,22 +9,32 @@ type Props = {
 }
 
 export default function DataTableEditor({ node, updateProps }: Props) {
+  const updateNodeProps = useNodePropUpdater(node.id, updateProps)
+
   return (
     <>
       <Field label='Source'>
-        <StyledSelect value={node.props.source} onChange={(e) => updateProps(node.id, { source: e.target.value })}>
+        <StyledSelect value={node.props.source} onChange={(e) => updateNodeProps({ source: e.target.value })}>
           <option value='static'>static</option>
           <option value='dataSource'>dataSource</option>
         </StyledSelect>
       </Field>
       <Field label='Page size'>
-        <TextInput value={String(node.props.pageSize)} onChange={(e) => updateProps(node.id, { pageSize: Number(e.target.value) || 1 })} />
+        <TextInput value={String(node.props.pageSize)} onChange={(e) => updateNodeProps({ pageSize: Number(e.target.value) || 1 })} />
       </Field>
-      <Toggle checked={node.props.searchable} label='Searchable' onChange={(v) => updateProps(node.id, { searchable: v })} />
-      <Toggle checked={node.props.pagination} label='Pagination' onChange={(v) => updateProps(node.id, { pagination: v })} />
-      <Toggle checked={node.props.selectableRows} label='Selectable rows' onChange={(v) => updateProps(node.id, { selectableRows: v })} />
-      <Field label='Columns JSON'><TextArea value={JSON.stringify(node.props.columns, null, 2)} onChange={(e) => { try { updateProps(node.id, { columns: JSON.parse(e.target.value) }) } catch { /* keep draft while JSON is invalid */ } }} /></Field>
-      <Field label='Rows JSON'><TextArea value={JSON.stringify(node.props.rows, null, 2)} onChange={(e) => { try { updateProps(node.id, { rows: JSON.parse(e.target.value) }) } catch { /* keep draft while JSON is invalid */ } }} /></Field>
+      <Toggle checked={node.props.searchable} label='Searchable' onChange={(v) => updateNodeProps({ searchable: v })} />
+      <Toggle checked={node.props.pagination} label='Pagination' onChange={(v) => updateNodeProps({ pagination: v })} />
+      <Toggle checked={node.props.selectableRows} label='Selectable rows' onChange={(v) => updateNodeProps({ selectableRows: v })} />
+      <JsonDraftField
+        label='Columns JSON'
+        value={node.props.columns}
+        onValidChange={(columns) => updateNodeProps({ columns })}
+      />
+      <JsonDraftField
+        label='Rows JSON'
+        value={node.props.rows}
+        onValidChange={(rows) => updateNodeProps({ rows })}
+      />
     </>
   )
 }
