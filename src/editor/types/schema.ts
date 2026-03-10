@@ -123,6 +123,12 @@ export type SearchSelectOption = {
   value: string
 }
 
+export type WidgetEventFlows = {
+  clickFlowId?: string
+  hoverFlowId?: string
+  loadFlowId?: string
+}
+
 export type DataTableColumn = {
   id: string
   header: string
@@ -228,6 +234,7 @@ export type NodePropsByType = {
     dataPath?: string
     labelPath?: string
     valuePath?: string
+    events?: WidgetEventFlows
   }
   dataTable: {
     source: 'static' | 'dataSource'
@@ -241,6 +248,7 @@ export type NodePropsByType = {
     selectableRows: boolean
     striped: boolean
     dense: boolean
+    events?: WidgetEventFlows
   }
   searchBar: {
     placeholder: string
@@ -261,6 +269,7 @@ export type NodePropsByType = {
     dataSourceId?: string
     dataPath: string
     itemContextName: string
+    events?: WidgetEventFlows
   }
 }
 
@@ -332,6 +341,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
       { id: createId(), label: 'Option 1', value: 'option-1' },
       { id: createId(), label: 'Option 2', value: 'option-2' },
     ],
+    events: {},
   },
   dataTable: {
     source: 'static',
@@ -349,6 +359,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
     selectableRows: false,
     striped: true,
     dense: false,
+    events: {},
   },
   searchBar: {
     placeholder: 'Search...',
@@ -369,6 +380,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
   repeater: {
     dataPath: 'items',
     itemContextName: 'item',
+    events: {},
   },
 }
 

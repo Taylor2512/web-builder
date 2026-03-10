@@ -48,6 +48,7 @@ export type FlowsActions = {
   renameFlow: (id: string, name: string) => void
   upsertFlowVariable: (flowId: string, key: string, variable: FlowVariable) => void
   removeFlowVariable: (flowId: string, key: string) => void
+  triggerFlowFromEvent: (flowId: string, meta?: { nodeId?: string; event?: 'click' | 'hover' | 'load' }) => void
 }
 
 export type PersistenceActions = {

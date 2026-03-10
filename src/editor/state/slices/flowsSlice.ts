@@ -75,4 +75,15 @@ export const createFlowsSlice: StateCreator<EditorStore, [], [], FlowsActions> =
     )
     get().persistProject()
   },
+
+  triggerFlowFromEvent(flowId) {
+    set(
+      produce((state: EditorStore) => {
+        const flow = state.flows.flowsById[flowId]
+        if (!flow) return
+        state.flows.activeFlowId = flowId
+        flow.updatedAt = new Date().toISOString()
+      }),
+    )
+  },
 })
