@@ -9,13 +9,114 @@ export type NodeBinding = {
   sourcePath: string
 }
 
+export type SeoMetadata = {
+  description?: string
+  ogImage?: string // legacy compatibility
+  canonicalUrl?: string
+  robots?: {
+    index?: boolean
+    follow?: boolean
+  }
+  og?: {
+    title?: string
+    description?: string
+    image?: string
+    type?: 'website' | 'article' | 'product'
+  }
+  twitter?: {
+    card?: 'summary' | 'summary_large_image'
+    title?: string
+    description?: string
+    image?: string
+  }
+}
+
+export type EditorPanelId = 'blocks' | 'layers' | 'pages' | 'design'
+
+export type EditorPanelsState = {
+  left: {
+    open: boolean
+    width: number
+    activePanel: EditorPanelId | null
+  }
+  right: {
+    open: boolean
+    width: number
+  }
+}
+
+export type FocusModeState = {
+  active: boolean
+  scope: 'page' | 'node'
+  nodeId: NodeId | null
+}
+
+export type EditorUIState = {
+  panels?: EditorPanelsState
+  focusMode: FocusModeState | boolean
+  leftPanelOpen: boolean // legacy compatibility
+  rightPanelOpen: boolean // legacy compatibility
+  leftPanelWidth: number // legacy compatibility
+  rightPanelWidth: number // legacy compatibility
+  activeLeftPanel: EditorPanelId | null // legacy compatibility
+}
+
+export type NodeVisibilityState = {
+  hidden: boolean
+  hiddenByBreakpoint?: Partial<Record<Breakpoint, boolean>>
+}
+
+export type NodeResponsiveState = {
+  breakpointOverrides?: Partial<Record<Breakpoint, StyleMap>>
+  lockAspectRatio?: boolean
+}
+
+export type NodeInteractionState = {
+  pointerEvents?: 'auto' | 'none'
+  tabIndex?: number
+  role?: string
+  ariaLabel?: string
+}
+
+export type LibraryTemplate = {
+  id: string
+  name: string
+  category: string
+  rootNodeId: NodeId
+  version: number
+  tags?: string[]
+}
+
+export type DataCollectionField = {
+  id: string
+  key: string
+  type: 'text' | 'number' | 'boolean' | 'date' | 'json'
+  required?: boolean
+}
+
+export type DataCollection = {
+  id: string
+  name: string
+  fields: DataCollectionField[]
+  records?: Record<string, unknown>[]
+}
+
 export type PageDef = {
   id: string
   name: string
   path: string
   rootId: NodeId
   title?: string
-  meta?: { description?: string; ogImage?: string }
+  meta?: {
+    description?: string
+    keywords?: string
+    canonicalUrl?: string
+    ogTitle?: string
+    ogDescription?: string
+    ogImage?: string
+    noIndex?: boolean
+  }
+  meta?: SeoMetadata
 }
 
 export type SiteMap = {
@@ -29,6 +130,12 @@ export type SearchSelectOption = {
   id: string
   label: string
   value: string
+}
+
+export type WidgetEventFlows = {
+  clickFlowId?: string
+  hoverFlowId?: string
+  loadFlowId?: string
 }
 
 export type DataTableColumn = {
@@ -136,6 +243,7 @@ export type NodePropsByType = {
     dataPath?: string
     labelPath?: string
     valuePath?: string
+    events?: WidgetEventFlows
   }
   dataTable: {
     source: 'static' | 'dataSource'
@@ -149,6 +257,7 @@ export type NodePropsByType = {
     selectableRows: boolean
     striped: boolean
     dense: boolean
+    events?: WidgetEventFlows
   }
   searchBar: {
     placeholder: string
@@ -169,6 +278,7 @@ export type NodePropsByType = {
     dataSourceId?: string
     dataPath: string
     itemContextName: string
+    events?: WidgetEventFlows
   }
 }
 
@@ -179,6 +289,9 @@ export type EditorNode<T extends NodeType = NodeType> = {
   styleByBreakpoint: StyleByBreakpoint
   children: NodeId[]
   isHidden?: boolean
+  visibility?: NodeVisibilityState
+  responsive?: NodeResponsiveState
+  interactions?: NodeInteractionState
   customCss?: string
   bindings?: NodeBinding[]
 }
@@ -193,14 +306,9 @@ export type EditorProject = {
   mode: EditorMode
   flows: FlowsState
   site: SiteMap
-  ui: {
-    leftPanelOpen: boolean
-    rightPanelOpen: boolean
-    leftPanelWidth: number
-    rightPanelWidth: number
-    focusMode: boolean
-    activeLeftPanel: 'blocks' | 'layers' | 'pages' | 'design' | null
-  }
+  ui: EditorUIState
+  libraryTemplates?: LibraryTemplate[]
+  dataCollections?: DataCollection[]
 }
 
 const makeId = () => `${Math.random().toString(36).slice(2, 9)}-${Date.now().toString(36)}`
@@ -242,6 +350,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
       { id: createId(), label: 'Option 1', value: 'option-1' },
       { id: createId(), label: 'Option 2', value: 'option-2' },
     ],
+    events: {},
   },
   dataTable: {
     source: 'static',
@@ -259,6 +368,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
     selectableRows: false,
     striped: true,
     dense: false,
+    events: {},
   },
   searchBar: {
     placeholder: 'Search...',
@@ -279,6 +389,7 @@ const defaults: { [K in NodeType]: NodePropsByType[K] } = {
   repeater: {
     dataPath: 'items',
     itemContextName: 'item',
+    events: {},
   },
 }
 
@@ -289,6 +400,13 @@ export const createNode = <T extends NodeType>(type: T, id: string = createId())
   styleByBreakpoint: emptyStyle(),
   children: [],
   isHidden: false,
+  visibility: {
+    hidden: false,
+  },
+  responsive: {
+    breakpointOverrides: {},
+  },
+  interactions: {},
   customCss: '',
   bindings: [],
 })
@@ -307,7 +425,19 @@ export const baseTemplate = (): EditorProject => {
   section.children = [heading.id, paragraph.id]
 
   const flow = createDefaultFlow('flow-main', 'Main Flow')
-  const homePage: PageDef = { id: 'page-home', name: 'Home', path: '/', rootId: page.id, title: 'Home' }
+  const homePage: PageDef = {
+    id: 'page-home',
+    name: 'Home',
+    path: '/',
+    rootId: page.id,
+    title: 'Home',
+    meta: {
+      description: 'Página principal del sitio',
+      ogTitle: 'Home',
+      ogDescription: 'Página principal del sitio',
+      noIndex: false,
+    },
+  }
 
   return {
     projectName: 'My Web Builder Project',
@@ -329,13 +459,30 @@ export const baseTemplate = (): EditorProject => {
       activePageId: homePage.id,
     },
     ui: {
+      panels: {
+        left: {
+          open: true,
+          width: 240,
+          activePanel: 'blocks',
+        },
+        right: {
+          open: true,
+          width: 300,
+        },
+      },
+      focusMode: {
+        active: false,
+        scope: 'page',
+        nodeId: null,
+      },
       leftPanelOpen: true,
       rightPanelOpen: true,
       leftPanelWidth: 240,
       rightPanelWidth: 300,
-      focusMode: false,
       activeLeftPanel: 'blocks' as const,
     },
+    libraryTemplates: [],
+    dataCollections: [],
   }
 }
 

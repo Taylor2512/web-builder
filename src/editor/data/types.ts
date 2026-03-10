@@ -24,3 +24,13 @@ export type DataSourceConnectionTest = {
   ok: boolean
   message: string
 }
+
+export type CollectionField = {
+  path: string
+  sampleType: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'unknown'
+}
+
+export type CollectionMapping = {
+  labelPath?: string
+  valuePath?: string
+}

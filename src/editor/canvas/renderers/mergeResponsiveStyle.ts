@@ -9,7 +9,10 @@ export const mergeResponsiveStyle = (
   const style: StyleMap = {};
   const maxIndex = bpOrder.indexOf(activeBreakpoint);
   for (let index = 0; index <= maxIndex; index += 1) {
-    Object.assign(style, node.styleByBreakpoint[bpOrder[index]]);
+    const breakpointStyle = node.styleByBreakpoint[bpOrder[index]];
+    for (const [key, value] of Object.entries(breakpointStyle)) {
+      if (value !== undefined) style[key] = value;
+    }
   }
   return style;
 };

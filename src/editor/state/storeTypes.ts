@@ -4,6 +4,7 @@ import type { FlowVariable } from '../flows/types/schema'
 import type { LibraryTemplate } from '../library'
 import type {
   Breakpoint,
+  EditorPanelId,
   EditorMode,
   EditorProject,
   Node,
@@ -37,6 +38,8 @@ export type NodesActions = {
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
   toggleNodeVisibility: (id: NodeId) => void
+  showNode: (id: NodeId) => void
+  showAllNodes: () => void
 }
 
 export type FlowsActions = {
@@ -46,6 +49,7 @@ export type FlowsActions = {
   renameFlow: (id: string, name: string) => void
   upsertFlowVariable: (flowId: string, key: string, variable: FlowVariable) => void
   removeFlowVariable: (flowId: string, key: string) => void
+  triggerFlowFromEvent: (flowId: string, meta?: { nodeId?: string; event?: 'click' | 'hover' | 'load' }) => void
 }
 
 export type PersistenceActions = {
@@ -60,6 +64,10 @@ export type PersistenceActions = {
   saveSelectionAsTemplate: (name: string) => void
   insertTemplate: (templateId: string, parentId: NodeId, index?: number) => void
   removeTemplate: (templateId: string) => void
+  undo: () => void
+  redo: () => void
+  createPublishSnapshot: (label?: string) => void
+  restorePublishSnapshot: (snapshotId: string) => void
 }
 
 export type UIActions = {
@@ -73,7 +81,19 @@ export type UIActions = {
   setRightPanelWidth: (width: number) => void
   toggleFocusMode: () => void
   setFocusMode: (active: boolean) => void
-  setActiveLeftPanel: (panel: 'blocks' | 'layers' | 'pages' | 'design' | null) => void
+  setFocusScope?: (scope: 'page' | 'node', nodeId?: NodeId | null) => void
+  setActiveLeftPanel: (panel: EditorPanelId | null) => void
+}
+
+export type HistoryHookContext = {
+  source: 'ui' | 'nodes' | 'site' | 'flows' | 'persistence'
+  action: string
+  timestamp: string
+}
+
+export type HistoryHooks = {
+  beforeCommit?: (project: EditorProject, context: HistoryHookContext) => EditorProject
+  afterCommit?: (project: EditorProject, context: HistoryHookContext) => void
 }
 
 export type EditorStore = EditorProject & {
@@ -85,6 +105,10 @@ export type EditorStore = EditorProject & {
   persistenceMode: PersistenceMode
   persistencePreference: PersistencePreference
   persistenceError: string | null
+  historyPast: EditorProject[]
+  historyFuture: EditorProject[]
+  publishSnapshots: { id: string; label: string; timestamp: string; snapshot: EditorProject }[]
+  historyHooks?: HistoryHooks
 } & SiteActions
   & NodesActions
   & FlowsActions
