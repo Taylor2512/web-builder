@@ -9,7 +9,7 @@ function PageSettings({ page, onBack }: { page: PageDef; onBack: () => void }) {
   const pages = useEditorStore((s) => s.site.pages)
   const updatePage = useEditorStore((s) => s.updatePage)
   const [pathDraft, setPathDraft] = useState(page.path)
-  const pathError = useMemo(() => validatePagePath(normalizePagePath(pathDraft, page.name || page.id), pages, page.id), [page.id, page.name, page.path, pages, pathDraft])
+  const pathError = useMemo(() => validatePagePath(normalizePagePath(pathDraft, page.name || page.id), pages, page.id), [page.id, page.name, pages, pathDraft])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

@@ -154,7 +154,15 @@ export const projectSnapshot = (state: EditorProject): EditorProject => ({
   ui: state.ui,
 })
 
-const withAutosave = (state: EditorState, set: any) => {
+type StoreSetter = (
+  partial:
+    | EditorState
+    | Partial<EditorState>
+    | ((state: EditorState) => EditorState | Partial<EditorState>),
+  replace?: false,
+) => void
+
+const withAutosave = (state: EditorState, set: StoreSetter) => {
   const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
@@ -713,7 +721,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.libraryTemplates.unshift(serialized)
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   insertTemplate(templateId, parentId, index) {
@@ -738,7 +746,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         else parent.children.push(instance.rootNodeId)
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   removeTemplate(templateId) {
@@ -747,7 +755,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.libraryTemplates = state.libraryTemplates.filter((template) => template.id !== templateId)
       }),
     )
-    withAutosave(get())
+    withAutosave(get(), set)
   },
 
   submitForm(formId, value) {

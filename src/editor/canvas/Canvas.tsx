@@ -410,6 +410,14 @@ function RenderNode({
   });
   const inRouter = useInRouterContext();
 
+  useEffect(() => {
+    if (!node || mode !== "preview") return;
+    if (node.type !== "searchSelect" && node.type !== "dataTable" && node.type !== "repeater") return;
+    const flowId = node.props.events?.loadFlowId;
+    if (!flowId) return;
+    selectFlow(flowId);
+  }, [mode, node, selectFlow]);
+
   if (!node) return null;
 
   const computedStyle = mergeResponsiveStyle(node, activeBreakpoint);
@@ -447,11 +455,6 @@ function RenderNode({
   };
 
   const nodeIssues: BindingIssue[] = [];
-
-  useEffect(() => {
-    runEventFlow("load");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, mode]);
 
   const resolvePagePath = (pageId?: string, fallbackPath?: string) => {
     if (pageId) {

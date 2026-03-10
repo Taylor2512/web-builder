@@ -11,8 +11,12 @@ export type NodeBinding = {
 
 export type SeoMetadata = {
   description?: string
+  keywords?: string
+  ogTitle?: string
+  ogDescription?: string
   ogImage?: string // legacy compatibility
   canonicalUrl?: string
+  noIndex?: boolean
   robots?: {
     index?: boolean
     follow?: boolean
@@ -81,9 +85,12 @@ export type NodeInteractionState = {
 export type LibraryTemplate = {
   id: string
   name: string
-  category: string
   rootNodeId: NodeId
-  version: number
+  nodesById: NodesById
+  createdAt: string
+  updatedAt: string
+  category?: string
+  version?: number
   tags?: string[]
 }
 
@@ -107,15 +114,6 @@ export type PageDef = {
   path: string
   rootId: NodeId
   title?: string
-  meta?: {
-    description?: string
-    keywords?: string
-    canonicalUrl?: string
-    ogTitle?: string
-    ogDescription?: string
-    ogImage?: string
-    noIndex?: boolean
-  }
   meta?: SeoMetadata
 }
 
