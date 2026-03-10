@@ -49,4 +49,14 @@ export const createUiSlice: StateCreator<EditorStore, [], [], UIActions> = (set,
     set((state) => ({ ui: { ...state.ui, rightPanelWidth: clampPanelWidth(rightPanelWidth) } }))
     get().persistProject()
   },
+
+  toggleFocusMode() {
+    set((state) => ({ ui: { ...state.ui, focusMode: !state.ui.focusMode } }))
+    get().persistProject()
+  },
+
+  setFocusMode(focusMode) {
+    set((state) => ({ ui: { ...state.ui, focusMode } }))
+    get().persistProject()
+  },
 })

@@ -38,6 +38,8 @@ export default function FormBuilder() {
   const toggleLeftPanel = useEditorStore((s) => s.toggleLeftPanel)
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel)
   const togglePanels = useEditorStore((s) => s.togglePanels)
+  const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode)
+  const setFocusMode = useEditorStore((s) => s.setFocusMode)
   const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
   const setRightPanelWidth = useEditorStore((s) => s.setRightPanelWidth)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -87,15 +89,23 @@ export default function FormBuilder() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const editable = target?.closest('input,textarea,[contenteditable="true"]')
+
       if ((event.ctrlKey || event.metaKey) && event.key === '\\') {
         event.preventDefault()
         togglePanels()
         return
       }
+
+      if (!editable && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        toggleFocusMode()
+        return
+      }
+
       if (mode !== 'edit' || !selectedNodeId) return
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
-      const target = event.target as HTMLElement | null
-      const editable = target?.closest('input,textarea,[contenteditable="true"]')
       if (editable) return
       const node = nodesById[selectedNodeId]
       if (!node || node.type === 'page') return
@@ -104,7 +114,7 @@ export default function FormBuilder() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, nodesById, removeNode, selectedNodeId, togglePanels])
+  }, [mode, nodesById, removeNode, selectedNodeId, toggleFocusMode, togglePanels])
 
   const activePage = pages.find((p) => p.id === activePageId)
 
@@ -125,7 +135,10 @@ export default function FormBuilder() {
     URL.revokeObjectURL(url)
   }
 
-  const panelColumns = `${ui.leftPanelOpen ? `${ui.leftPanelWidth}px` : '0px'} 1fr ${ui.rightPanelOpen ? `${ui.rightPanelWidth}px` : '0px'}`
+  const focusModeActive = workspace === 'pages' && ui.focusMode
+  const panelColumns = focusModeActive
+    ? '0px 1fr 0px'
+    : `${ui.leftPanelOpen ? `${ui.leftPanelWidth}px` : '0px'} 1fr ${ui.rightPanelOpen ? `${ui.rightPanelWidth}px` : '0px'}`
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -196,7 +209,7 @@ export default function FormBuilder() {
             </button>
           ))}
 
-          {workspace === 'pages' && (
+          {workspace === 'pages' && !focusModeActive && (
             <>
               <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
               {/* Page selector */}
@@ -254,7 +267,7 @@ export default function FormBuilder() {
 
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
-          {workspace === 'pages' && (
+          {workspace === 'pages' && !focusModeActive && (
             <>
               <GhostButton onClick={toggleLeftPanel} title='Mostrar/ocultar panel izquierdo' style={{ fontSize: 11 }}>
                 {ui.leftPanelOpen ? '⇤ Left' : '⇥ Left'}
@@ -268,6 +281,12 @@ export default function FormBuilder() {
             </>
           )}
 
+          {workspace === 'pages' && (
+            <GhostButton onClick={toggleFocusMode} title='Activar/desactivar Focus (F o Shift+F)' style={{ fontSize: 11 }}>
+              {focusModeActive ? '⤫ Exit Focus' : '◉ Focus'}
+            </GhostButton>
+          )}
+
           {/* Preview */}
           {workspace === 'pages' && (
             <PrimaryButton
@@ -279,20 +298,24 @@ export default function FormBuilder() {
           )}
 
           {/* Import / Export */}
-          <GhostButton onClick={handleExport} title='Export design as JSON' style={{ fontSize: 11 }}>↑ Export</GhostButton>
-          <GhostButton onClick={() => fileRef.current?.click()} title='Import JSON' style={{ fontSize: 11 }}>↓ Import</GhostButton>
-          <button
-            type='button'
-            onClick={() => { if (confirm('Reset all content? This cannot be undone.')) reset() }}
-            title='Reset project'
-            style={{
-              padding: '5px 8px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--danger)', cursor: 'pointer', fontSize: 11,
-            }}
-          >
-            ↺
-          </button>
+          {!focusModeActive && (
+            <>
+              <GhostButton onClick={handleExport} title='Export design as JSON' style={{ fontSize: 11 }}>↑ Export</GhostButton>
+              <GhostButton onClick={() => fileRef.current?.click()} title='Import JSON' style={{ fontSize: 11 }}>↓ Import</GhostButton>
+              <button
+                type='button'
+                onClick={() => { if (confirm('Reset all content? This cannot be undone.')) reset() }}
+                title='Reset project'
+                style={{
+                  padding: '5px 8px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)', background: 'transparent',
+                  color: 'var(--danger)', cursor: 'pointer', fontSize: 11,
+                }}
+              >
+                ↺
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -300,46 +323,74 @@ export default function FormBuilder() {
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: panelColumns, minHeight: 0, overflow: 'hidden' }}>
         {workspace === 'pages' ? (
           <>
-            <aside style={{ borderRight: ui.leftPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              {ui.leftPanelOpen && <BlocksPanel />}
-              <button
-                type='button'
-                onClick={toggleLeftPanel}
-                title={ui.leftPanelOpen ? 'Colapsar panel izquierdo' : 'Expandir panel izquierdo'}
-                style={{ position: 'absolute', right: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-              >
-                {ui.leftPanelOpen ? '◀' : '▶'}
-              </button>
-              {ui.leftPanelOpen && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
-                  <button type='button' title='Reducir ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
-                  <button type='button' title='Aumentar ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
-                </div>
-              )}
-            </aside>
+            {!focusModeActive && (
+              <aside style={{ borderRight: ui.leftPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                {ui.leftPanelOpen && <BlocksPanel />}
+                <button
+                  type='button'
+                  onClick={toggleLeftPanel}
+                  title={ui.leftPanelOpen ? 'Colapsar panel izquierdo' : 'Expandir panel izquierdo'}
+                  style={{ position: 'absolute', right: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
+                >
+                  {ui.leftPanelOpen ? '◀' : '▶'}
+                </button>
+                {ui.leftPanelOpen && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
+                    <button type='button' title='Reducir ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
+                    <button type='button' title='Aumentar ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
+                  </div>
+                )}
+              </aside>
+            )}
             <section style={{ overflow: 'hidden' }}><Canvas /></section>
-            <aside style={{ borderLeft: ui.rightPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              {ui.rightPanelOpen && <Inspector />}
-              <button
-                type='button'
-                onClick={toggleRightPanel}
-                title={ui.rightPanelOpen ? 'Colapsar panel derecho' : 'Expandir panel derecho'}
-                style={{ position: 'absolute', left: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-              >
-                {ui.rightPanelOpen ? '▶' : '◀'}
-              </button>
-              {ui.rightPanelOpen && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
-                  <button type='button' title='Reducir ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
-                  <button type='button' title='Aumentar ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
-                </div>
-              )}
-            </aside>
+            {!focusModeActive && (
+              <aside style={{ borderLeft: ui.rightPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                {ui.rightPanelOpen && <Inspector />}
+                <button
+                  type='button'
+                  onClick={toggleRightPanel}
+                  title={ui.rightPanelOpen ? 'Colapsar panel derecho' : 'Expandir panel derecho'}
+                  style={{ position: 'absolute', left: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
+                >
+                  {ui.rightPanelOpen ? '▶' : '◀'}
+                </button>
+                {ui.rightPanelOpen && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
+                    <button type='button' title='Reducir ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
+                    <button type='button' title='Aumentar ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
+                  </div>
+                )}
+              </aside>
+            )}
           </>
         ) : (
           <section style={{ gridColumn: '1 / -1', overflow: 'auto' }}><FlowStudio /></section>
         )}
       </div>
+
+      {focusModeActive && (
+        <button
+          type='button'
+          onClick={() => setFocusMode(false)}
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            zIndex: 40,
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border)',
+            background: 'var(--primary)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+          }}
+        >
+          Salir de Focus
+        </button>
+      )}
 
       <input
         ref={fileRef}
