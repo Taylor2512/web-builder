@@ -102,6 +102,17 @@ export const createNodesSlice: StateCreator<EditorStore, [], [], NodesActions> =
     get().persistProject()
   },
 
+
+  toggleNodeVisibility(id) {
+    set(
+      produce((state: EditorStore) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.isHidden = !node.isHidden
+      }),
+    )
+    get().persistProject()
+  },
   moveNodeSibling(id, direction) {
     set(
       produce((state: EditorStore) => {

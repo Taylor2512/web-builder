@@ -61,6 +61,7 @@ type EditorState = EditorProject & {
   removePage: (pageId: string) => void
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
+  toggleNodeVisibility: (id: NodeId) => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -492,6 +493,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         } else if (direction === 'down' && idx < parent.children.length - 1) {
           ;[parent.children[idx + 1], parent.children[idx]] = [parent.children[idx], parent.children[idx + 1]]
         }
+      }),
+    )
+    withAutosave(get())
+  },
+
+
+  toggleNodeVisibility(id) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.isHidden = !node.isHidden
       }),
     )
     withAutosave(get())

@@ -178,6 +178,7 @@ export type EditorNode<T extends NodeType = NodeType> = {
   props: NodePropsByType[T]
   styleByBreakpoint: StyleByBreakpoint
   children: NodeId[]
+  isHidden?: boolean
   customCss?: string
   bindings?: NodeBinding[]
 }
@@ -285,6 +286,7 @@ export const createNode = <T extends NodeType>(type: T, id: string = createId())
   props: structuredClone(defaults[type]),
   styleByBreakpoint: emptyStyle(),
   children: [],
+  isHidden: false,
   customCss: '',
   bindings: [],
 })
