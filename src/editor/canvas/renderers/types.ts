@@ -6,6 +6,7 @@ export type NodeRendererContext = {
   mode: EditorMode
   renderChildren: (keyPrefix?: string) => ReactNode
   updateProps: (id: string, patch: Record<string, unknown>) => void
+  submitForm: (formId: string, value: unknown) => void
 }
 
 export type RendererOutput = {
