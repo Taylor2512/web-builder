@@ -34,6 +34,12 @@ export default function FormBuilder() {
   const flows = useEditorStore((s) => s.flows)
   const site = useEditorStore((s) => s.site)
   const rootId = useEditorStore((s) => s.rootId)
+  const ui = useEditorStore((s) => s.ui)
+  const toggleLeftPanel = useEditorStore((s) => s.toggleLeftPanel)
+  const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel)
+  const togglePanels = useEditorStore((s) => s.togglePanels)
+  const setLeftPanelWidth = useEditorStore((s) => s.setLeftPanelWidth)
+  const setRightPanelWidth = useEditorStore((s) => s.setRightPanelWidth)
   const fileRef = useRef<HTMLInputElement>(null)
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
@@ -67,7 +73,7 @@ export default function FormBuilder() {
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
-      const snapshot = projectSnapshot({ projectName, rootId, nodesById, mode, flows, site })
+      const snapshot = projectSnapshot({ projectName, rootId, nodesById, mode, flows, site, ui })
       setSyncStatus('syncing')
       try {
         await saveRemoteProject(snapshot, projectName)
@@ -77,10 +83,15 @@ export default function FormBuilder() {
       }
     }, 700)
     return () => window.clearTimeout(timer)
-  }, [projectName, rootId, nodesById, mode, flows, site])
+  }, [projectName, rootId, nodesById, mode, flows, site, ui])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === '\\') {
+        event.preventDefault()
+        togglePanels()
+        return
+      }
       if (mode !== 'edit' || !selectedNodeId) return
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
       const target = event.target as HTMLElement | null
@@ -93,7 +104,7 @@ export default function FormBuilder() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, nodesById, removeNode, selectedNodeId])
+  }, [mode, nodesById, removeNode, selectedNodeId, togglePanels])
 
   const activePage = pages.find((p) => p.id === activePageId)
 
@@ -113,6 +124,8 @@ export default function FormBuilder() {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const panelColumns = `${ui.leftPanelOpen ? `${ui.leftPanelWidth}px` : '0px'} 1fr ${ui.rightPanelOpen ? `${ui.rightPanelWidth}px` : '0px'}`
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -241,6 +254,20 @@ export default function FormBuilder() {
 
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
+          {workspace === 'pages' && (
+            <>
+              <GhostButton onClick={toggleLeftPanel} title='Mostrar/ocultar panel izquierdo' style={{ fontSize: 11 }}>
+                {ui.leftPanelOpen ? '⇤ Left' : '⇥ Left'}
+              </GhostButton>
+              <GhostButton onClick={toggleRightPanel} title='Mostrar/ocultar panel derecho' style={{ fontSize: 11 }}>
+                {ui.rightPanelOpen ? 'Right ⇥' : 'Right ⇤'}
+              </GhostButton>
+              <GhostButton onClick={togglePanels} title='Mostrar/ocultar ambos paneles (Ctrl/Cmd + \\)' style={{ fontSize: 11 }}>
+                ⌘\\
+              </GhostButton>
+            </>
+          )}
+
           {/* Preview */}
           {workspace === 'pages' && (
             <PrimaryButton
@@ -270,12 +297,44 @@ export default function FormBuilder() {
       </header>
 
       {/* ── Main content ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '240px 1fr 300px', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: panelColumns, minHeight: 0, overflow: 'hidden' }}>
         {workspace === 'pages' ? (
           <>
-            <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}><BlocksPanel /></aside>
+            <aside style={{ borderRight: ui.leftPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              {ui.leftPanelOpen && <BlocksPanel />}
+              <button
+                type='button'
+                onClick={toggleLeftPanel}
+                title={ui.leftPanelOpen ? 'Colapsar panel izquierdo' : 'Expandir panel izquierdo'}
+                style={{ position: 'absolute', right: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
+              >
+                {ui.leftPanelOpen ? '◀' : '▶'}
+              </button>
+              {ui.leftPanelOpen && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
+                  <button type='button' title='Reducir ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
+                  <button type='button' title='Aumentar ancho panel izquierdo' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
+                </div>
+              )}
+            </aside>
             <section style={{ overflow: 'hidden' }}><Canvas /></section>
-            <aside style={{ borderLeft: '1px solid var(--border)', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}><Inspector /></aside>
+            <aside style={{ borderLeft: ui.rightPanelOpen ? '1px solid var(--border)' : 'none', background: 'var(--panel)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              {ui.rightPanelOpen && <Inspector />}
+              <button
+                type='button'
+                onClick={toggleRightPanel}
+                title={ui.rightPanelOpen ? 'Colapsar panel derecho' : 'Expandir panel derecho'}
+                style={{ position: 'absolute', left: 6, top: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
+              >
+                {ui.rightPanelOpen ? '▶' : '◀'}
+              </button>
+              {ui.rightPanelOpen && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, borderTop: '1px solid var(--border)' }}>
+                  <button type='button' title='Reducir ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)} style={{ fontSize: 11 }}>−</button>
+                  <button type='button' title='Aumentar ancho panel derecho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)} style={{ fontSize: 11 }}>+</button>
+                </div>
+              )}
+            </aside>
           </>
         ) : (
           <section style={{ gridColumn: '1 / -1', overflow: 'auto' }}><FlowStudio /></section>

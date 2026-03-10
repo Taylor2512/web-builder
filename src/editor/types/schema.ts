@@ -192,6 +192,12 @@ export type EditorProject = {
   mode: EditorMode
   flows: FlowsState
   site: SiteMap
+  ui: {
+    leftPanelOpen: boolean
+    rightPanelOpen: boolean
+    leftPanelWidth: number
+    rightPanelWidth: number
+  }
 }
 
 const makeId = () => `${Math.random().toString(36).slice(2, 9)}-${Date.now().toString(36)}`
@@ -317,6 +323,12 @@ export const baseTemplate = (): EditorProject => {
     site: {
       pages: [homePage],
       activePageId: homePage.id,
+    },
+    ui: {
+      leftPanelOpen: true,
+      rightPanelOpen: true,
+      leftPanelWidth: 240,
+      rightPanelWidth: 300,
     },
   }
 }

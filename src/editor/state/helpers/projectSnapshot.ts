@@ -8,4 +8,5 @@ export const projectSnapshot = (state: EditorProject): EditorProject => ({
   mode: state.mode,
   flows: state.flows,
   site: state.site,
+  ui: state.ui,
 })

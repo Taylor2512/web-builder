@@ -38,6 +38,11 @@ type EditorState = EditorProject & {
   selectNode: (id: NodeId | null) => void
   setMode: (mode: EditorMode) => void
   setBreakpoint: (breakpoint: Breakpoint) => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  togglePanels: () => void
+  setLeftPanelWidth: (width: number) => void
+  setRightPanelWidth: (width: number) => void
   setProjectName: (name: string) => void
   serialize: () => string
   hydrate: (json: string) => void
@@ -98,6 +103,18 @@ const normalizeSite = (project: EditorProject): EditorProject['site'] => {
   return { pages, activePageId }
 }
 
+const clampPanelWidth = (width: number) => Math.max(180, Math.min(width, 520))
+
+const normalizeUi = (project: EditorProject): EditorProject['ui'] => {
+  const fallback = baseTemplate().ui
+  return {
+    leftPanelOpen: project.ui?.leftPanelOpen ?? fallback.leftPanelOpen,
+    rightPanelOpen: project.ui?.rightPanelOpen ?? fallback.rightPanelOpen,
+    leftPanelWidth: clampPanelWidth(project.ui?.leftPanelWidth ?? fallback.leftPanelWidth),
+    rightPanelWidth: clampPanelWidth(project.ui?.rightPanelWidth ?? fallback.rightPanelWidth),
+  }
+}
+
 export const projectSnapshot = (state: EditorProject): EditorProject => ({
   projectName: state.projectName,
   rootId: activeRootId(state),
@@ -105,6 +122,7 @@ export const projectSnapshot = (state: EditorProject): EditorProject => ({
   mode: state.mode,
   flows: state.flows,
   site: state.site,
+  ui: state.ui,
 })
 
 const withAutosave = (state: EditorState) => {
@@ -120,6 +138,7 @@ const initialProject: EditorProject = {
   flows: initialProjectRaw.flows ?? fallbackTemplate.flows,
   site: normalizeSite(initialProjectRaw),
   rootId: initialProjectRaw.rootId ?? fallbackTemplate.rootId,
+  ui: normalizeUi(initialProjectRaw),
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
 
@@ -244,6 +263,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ activeBreakpoint })
   },
 
+  toggleLeftPanel() {
+    set((state) => ({ ui: { ...state.ui, leftPanelOpen: !state.ui.leftPanelOpen } }))
+    withAutosave(get())
+  },
+
+  toggleRightPanel() {
+    set((state) => ({ ui: { ...state.ui, rightPanelOpen: !state.ui.rightPanelOpen } }))
+    withAutosave(get())
+  },
+
+  togglePanels() {
+    const { leftPanelOpen, rightPanelOpen } = get().ui
+    const nextOpen = !(leftPanelOpen && rightPanelOpen)
+    set((state) => ({ ui: { ...state.ui, leftPanelOpen: nextOpen, rightPanelOpen: nextOpen } }))
+    withAutosave(get())
+  },
+
+  setLeftPanelWidth(width) {
+    set((state) => ({ ui: { ...state.ui, leftPanelWidth: clampPanelWidth(width) } }))
+    withAutosave(get())
+  },
+
+  setRightPanelWidth(width) {
+    set((state) => ({ ui: { ...state.ui, rightPanelWidth: clampPanelWidth(width) } }))
+    withAutosave(get())
+  },
+
   setProjectName(projectName) {
     set({ projectName })
     withAutosave(get())
@@ -260,6 +306,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...payload,
       flows: payload.flows ?? baseTemplate().flows,
       site: normalizeSite(payload),
+      ui: normalizeUi(payload),
     }
     set({ ...ensured, selectedNodeId: null })
     withAutosave(get())
