@@ -16,9 +16,12 @@ import {
 import { defaultBuilderConfig, type BuilderConfig } from '../config/loadBuilderConfig'
 import { createDefaultFlow, type FlowDefinition, type FlowVariable } from '../flows/types/schema'
 import { saveRemoteSubmission } from '../api/jsonServer'
+import { fetchDataSource, setDataSourceResolver } from '../data/engine'
+import type { DataSourceConnectionTest, DataSourceDef } from '../data/types'
 
 const STORAGE_KEY = 'web-builder-project-v1'
 const SUBMISSIONS_KEY = 'web-builder-form-submissions-v1'
+const DATA_SOURCES_KEY = 'web-builder-data-sources-v1'
 
 type SubmissionMap = Record<string, unknown[]>
 
@@ -26,11 +29,15 @@ type EditorState = EditorProject & {
   selectedNodeId: NodeId | null
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
+  dataSources: Record<string, DataSourceDef>
   builderConfig: BuilderConfig
   addNode: (parentId: NodeId, node: Node, index?: number) => void
   removeNode: (id: NodeId) => void
   moveNode: (id: NodeId, newParentId: NodeId, index?: number) => void
   updateProps: (id: NodeId, patch: Record<string, unknown>) => void
+  replaceProps: (id: NodeId, nextProps: unknown) => void
+  setCustomCss: (id: NodeId, customCss: string) => void
+  setBindings: (id: NodeId, bindings: { id: string; targetPath: string; sourcePath: string }[]) => void
   updateStyle: (id: NodeId, patch: Record<string, string | number | undefined>, breakpoint?: Breakpoint) => void
   selectNode: (id: NodeId | null) => void
   setMode: (mode: EditorMode) => void
@@ -53,6 +60,9 @@ type EditorState = EditorProject & {
   removePage: (pageId: string) => void
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
+  upsertDataSource: (dataSource: DataSourceDef) => void
+  removeDataSource: (id: string) => void
+  testDataSourceConnection: (id: string) => Promise<DataSourceConnectionTest>
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -89,6 +99,7 @@ const withAutosave = (state: EditorState) => {
   const payload: EditorProject = projectSnapshot(state)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(state.submissions))
+  localStorage.setItem(DATA_SOURCES_KEY, JSON.stringify(state.dataSources))
 }
 
 const fallbackTemplate = baseTemplate()
@@ -100,12 +111,33 @@ const initialProject: EditorProject = {
   rootId: initialProjectRaw.rootId ?? fallbackTemplate.rootId,
 }
 const initialSubmissions = safeParse<SubmissionMap>(localStorage.getItem(SUBMISSIONS_KEY), {})
+const initialDataSources = safeParse<Record<string, DataSourceDef>>(localStorage.getItem(DATA_SOURCES_KEY), {})
+
+setDataSourceResolver((id) => useEditorStore.getState().dataSources[id])
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initialProject,
+import { defaultBuilderConfig } from '../config/loadBuilderConfig'
+import { createId, createNode, type Node, type NodeType } from '../types/schema'
+import { projectSnapshot } from './helpers/projectSnapshot'
+import { createFlowsSlice } from './slices/flowsSlice'
+import { createNodesSlice } from './slices/nodesSlice'
+import { createPersistenceSlice, initialProject, initialSubmissions } from './slices/persistenceSlice'
+import { createSiteSlice } from './slices/siteSlice'
+import { createUiSlice } from './slices/uiSlice'
+import type { EditorStore } from './storeTypes'
+
+export { projectSnapshot }
+
+const project = initialProject()
+
+export const useEditorStore = create<EditorStore>()((...args) => ({
+  ...project,
   selectedNodeId: null,
   activeBreakpoint: 'desktop',
   submissions: initialSubmissions,
+  dataSources: initialDataSources,
+  submissions: initialSubmissions(),
   builderConfig: defaultBuilderConfig,
 
   addNode(parentId, node, index) {
@@ -163,6 +195,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+
+  replaceProps(id, nextProps) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.props = nextProps as Node['props']
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setCustomCss(id, customCss) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.customCss = customCss
+      }),
+    )
+    withAutosave(get())
+  },
+
+  setBindings(id, bindings) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.bindings = bindings
+      }),
+    )
+    withAutosave(get())
+  },
+
   updateStyle(id, patch, breakpoint) {
     set(
       produce((state: EditorState) => {
@@ -210,7 +276,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   reset() {
-    set({ ...baseTemplate(), selectedNodeId: null, submissions: {} })
+    set({ ...baseTemplate(), selectedNodeId: null, submissions: {}, dataSources: {} })
     withAutosave(get())
   },
 
@@ -394,6 +460,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     withAutosave(get())
   },
 
+  upsertDataSource(dataSource) {
+    set(
+      produce((state: EditorState) => {
+        state.dataSources[dataSource.id] = dataSource
+      }),
+    )
+    withAutosave(get())
+  },
+
+  removeDataSource(id) {
+    set(
+      produce((state: EditorState) => {
+        delete state.dataSources[id]
+      }),
+    )
+    withAutosave(get())
+  },
+
+  async testDataSourceConnection(id) {
+    try {
+      const result = await fetchDataSource(id)
+      return { ok: true, message: `Connection successful (${result.from})` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Connection failed'
+      return { ok: false, message }
+    }
+  },
+
   submitForm(formId, value) {
     set(
       produce((state: EditorState) => {
@@ -413,6 +507,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })
     withAutosave(get())
   },
+  ...createPersistenceSlice(...args),
+  ...createUiSlice(...args),
+  ...createSiteSlice(...args),
+  ...createNodesSlice(...args),
+  ...createFlowsSlice(...args),
 }))
 
 export const buildNode = (type: NodeType): Node => createNode(type, createId()) as Node
