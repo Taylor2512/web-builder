@@ -30,7 +30,7 @@ export function RenderNode({
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
   const mode = useEditorStore((state) => state.mode);
-  const updateProps = useEditorStore((state) => state.updateProps);
+  const updateNodePropsByType = useEditorStore((state) => state.updateNodePropsByType);
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
   const [isEditingText, setIsEditingText] = useState(false);
 
@@ -59,7 +59,7 @@ export function RenderNode({
     mode,
     isEditingText,
     setIsEditingText,
-    updateProps: (nodeId, patch) => updateProps(nodeId, patch),
+    updateProps: (nodeId, patch) => updateNodePropsByType(nodeId, patch),
   });
 
   const editBorder =
