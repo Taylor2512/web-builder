@@ -45,6 +45,7 @@ export const createSiteSlice: StateCreator<EditorStore, [], [], SiteActions> = (
         if (patch.name !== undefined) page.name = patch.name
         if (patch.path !== undefined) page.path = patch.path.startsWith('/') ? patch.path : `/${patch.path}`
         if (patch.title !== undefined) page.title = patch.title
+        if (patch.meta !== undefined) page.meta = patch.meta
       }),
     )
     get().persistProject()
