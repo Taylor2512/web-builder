@@ -4,7 +4,7 @@ import { createId, createNode, type Node, type NodeType } from '../types/schema'
 import { projectSnapshot } from './helpers/projectSnapshot'
 import { createFlowsSlice } from './slices/flowsSlice'
 import { createNodesSlice } from './slices/nodesSlice'
-import { createPersistenceSlice, initialProject, initialSubmissions } from './slices/persistenceSlice'
+import { createPersistenceSlice, initialPersistencePreference, initialProject, initialSubmissions } from './slices/persistenceSlice'
 import { createSiteSlice } from './slices/siteSlice'
 import { createUiSlice } from './slices/uiSlice'
 import type { EditorStore } from './storeTypes'
@@ -19,6 +19,9 @@ export const useEditorStore = create<EditorStore>()((...args) => ({
   activeBreakpoint: 'desktop',
   submissions: initialSubmissions(),
   builderConfig: defaultBuilderConfig,
+  persistenceMode: 'local',
+  persistencePreference: initialPersistencePreference,
+  persistenceError: null,
   ...createPersistenceSlice(...args),
   ...createUiSlice(...args),
   ...createSiteSlice(...args),

@@ -6,8 +6,6 @@ import { useEditorStore } from '../state/useEditorStore'
 import { GhostButton, PrimaryButton } from '../../shared/ui'
 import { loadBuilderConfig } from '../config/loadBuilderConfig'
 import FlowStudio from '../flows/FlowStudio'
-import { loadRemoteProject, saveRemoteProject } from '../api/jsonServer'
-import { projectSnapshot } from '../state/useEditorStore'
 
 const BP_ICONS: Record<string, string> = { desktop: '🖥', tablet: '⬜', mobile: '📱' }
 
@@ -31,12 +29,13 @@ export default function FormBuilder() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId)
   const removeNode = useEditorStore((s) => s.removeNode)
   const nodesById = useEditorStore((s) => s.nodesById)
-  const flows = useEditorStore((s) => s.flows)
-  const site = useEditorStore((s) => s.site)
-  const rootId = useEditorStore((s) => s.rootId)
+  const persistenceMode = useEditorStore((s) => s.persistenceMode)
+  const persistencePreference = useEditorStore((s) => s.persistencePreference)
+  const persistenceError = useEditorStore((s) => s.persistenceError)
+  const setPersistencePreference = useEditorStore((s) => s.setPersistencePreference)
   const fileRef = useRef<HTMLInputElement>(null)
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
+  const [isSwitchingPersistence, setIsSwitchingPersistence] = useState(false)
   const [editingName, setEditingName] = useState(false)
 
   useEffect(() => {
@@ -49,35 +48,8 @@ export default function FormBuilder() {
   }, [setBuilderConfig])
 
   useEffect(() => {
-    let cancelled = false
-    const hydrateFromRemote = async () => {
-      try {
-        const project = await loadRemoteProject()
-        if (!cancelled && project?.data) {
-          hydrate(JSON.stringify(project.data))
-          setSyncStatus('ok')
-        }
-      } catch {
-        if (!cancelled) setSyncStatus('error')
-      }
-    }
-    void hydrateFromRemote()
-    return () => { cancelled = true }
-  }, [hydrate])
-
-  useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      const snapshot = projectSnapshot({ projectName, rootId, nodesById, mode, flows, site })
-      setSyncStatus('syncing')
-      try {
-        await saveRemoteProject(snapshot, projectName)
-        setSyncStatus('ok')
-      } catch {
-        setSyncStatus('error')
-      }
-    }, 700)
-    return () => window.clearTimeout(timer)
-  }, [projectName, rootId, nodesById, mode, flows, site])
+    void setPersistencePreference(persistencePreference)
+  }, [persistencePreference, setPersistencePreference])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -97,12 +69,11 @@ export default function FormBuilder() {
 
   const activePage = pages.find((p) => p.id === activePageId)
 
-  const syncDot = {
-    idle:    { color: '#64748b', label: 'Saved' },
-    syncing: { color: '#f59e0b', label: 'Saving…' },
-    ok:      { color: '#22c55e', label: 'Saved' },
-    error:   { color: '#ef4444', label: 'Error' },
-  }[syncStatus]
+  const syncDot = isSwitchingPersistence
+    ? { color: '#f59e0b', label: 'Cambiando modo…' }
+    : persistenceError
+      ? { color: '#ef4444', label: 'Error no bloqueante' }
+      : { color: '#22c55e', label: `Persistencia: ${persistenceMode}` }
 
   const handleExport = () => {
     const blob = new Blob([serialize()], { type: 'application/json' })
@@ -160,6 +131,32 @@ export default function FormBuilder() {
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: syncDot.color }} />
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>{syncDot.label}</span>
           </div>
+          <select
+            value={persistencePreference}
+            onChange={(event) => {
+              setIsSwitchingPersistence(true)
+              void setPersistencePreference(event.target.value as 'auto' | 'local' | 'json-server').finally(() => {
+                setIsSwitchingPersistence(false)
+              })
+            }}
+            title='Modo de persistencia'
+            style={{
+              padding: '4px 22px 4px 8px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              appearance: 'none',
+            }}
+          >
+            <option value='auto'>Auto ({persistenceMode})</option>
+            <option value='local'>Local</option>
+            <option value='json-server'>JSON Server</option>
+          </select>
+          {persistenceError && (
+            <span style={{ fontSize: 10, color: 'var(--danger)' }}>{persistenceError}</span>
+          )}
         </div>
 
         {/* Center: workspace + page tabs */}
