@@ -2,19 +2,12 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  rectSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState, useEffect } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
@@ -472,15 +465,16 @@ export default function Canvas() {
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Backspace" || e.key === "Delete") {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Backspace" || event.key === "Delete") {
         const activeEl = document.activeElement as HTMLElement | null;
         if (
           activeEl?.tagName === "INPUT" ||
           activeEl?.tagName === "TEXTAREA" ||
           activeEl?.isContentEditable
-        )
+        ) {
           return;
+        }
 
         const state = useEditorStore.getState();
         if (state.mode === "edit" && state.selectedNodeId) {
@@ -491,9 +485,11 @@ export default function Canvas() {
         }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
   const [hoveredDropId, setHoveredDropId] = useState<string | null>(null);
   const { viewport, zoomIn, zoomOut, resetViewport } = useViewport();
 
@@ -502,53 +498,11 @@ export default function Canvas() {
   );
   const root = nodesById[rootId];
 
-  const findParentId = (childId: string) =>
-    Object.values(nodesById).find((n) => n.children.includes(childId))?.id;
-
-  const isDescendant = (ancestorId: string, targetId: string): boolean => {
-    const n = nodesById[ancestorId];
-    if (!n) return false;
-    if (n.children.includes(targetId)) return true;
-    return n.children.some((cId) => isDescendant(cId, targetId));
-  };
-
-  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
-    const allowed = builderConfig.constraints.allowedParents[childType];
-    return !allowed || allowed.includes(parentType);
-  };
-
-  const hasChildCapacity = (parentId: string) => {
-    const parent = nodesById[parentId];
-    if (!parent) return false;
-    const max = builderConfig.constraints.maxChildren[parent.type];
-    return typeof max !== "number" || parent.children.length < max;
-  };
-
-  const resolveDropParent = (overId: string | null) => {
-    if (!overId) return rootId;
-    if (overId.startsWith("drop-")) return overId.replace("drop-", "");
-    const overNode = nodesById[overId];
-    if (!overNode) return rootId;
-    if (containerTypes.includes(overNode.type)) return overNode.id;
-    return findParentId(overNode.id) ?? rootId;
-  };
-
-  const resolveDropIndex = (overId: string | null, parentId: string) => {
-    if (!overId || overId.startsWith("drop-")) return undefined;
-    const parentNode = nodesById[parentId];
-    if (!parentNode) return undefined;
-    const idx = parentNode.children.findIndex((c) => c === overId);
-    return idx >= 0 ? idx : undefined;
-  };
-
   const onDragStart = (event: DragStartEvent) => {
     setDragMeta({
       id: String(event.active.id),
-      blockType: event.active.data.current?.blockType as
-        | Node["type"]
-        | undefined,
-      source:
-        (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
+      blockType: event.active.data.current?.blockType as Node["type"] | undefined,
+      source: (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
     });
     setHoveredDropId(null);
   };
@@ -556,31 +510,42 @@ export default function Canvas() {
   const onDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id ? String(event.over.id) : null;
     if (!dragMeta) return;
-    const parentId = resolveDropParent(overId);
+
+    const parentId = resolveDropParent(overId, nodesById, rootId);
     const parentNode = nodesById[parentId];
     if (!parentNode) return;
 
     if (dragMeta.source === "palette" && dragMeta.blockType) {
-      const dropIndex = resolveDropIndex(overId, parentId);
+      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
       if (
-        isAllowedParent(dragMeta.blockType, parentNode.type) &&
-        hasChildCapacity(parentId)
+        isAllowedParent(
+          dragMeta.blockType,
+          parentNode.type,
+          builderConfig.constraints.allowedParents,
+        ) &&
+        hasChildCapacity(
+          parentId,
+          nodesById,
+          builderConfig.constraints.maxChildren,
+        )
       ) {
         addNode(parentId, buildNode(dragMeta.blockType), dropIndex);
       }
     }
 
     if (dragMeta.source === "canvas") {
-      if (dragMeta.id === parentId || isDescendant(dragMeta.id, parentId)) {
+      if (
+        dragMeta.id === parentId ||
+        isDescendant(nodesById, dragMeta.id, parentId)
+      ) {
         setDragMeta(null);
         return;
       }
-      const currentParentId = findParentId(dragMeta.id);
-      const dropIndex = resolveDropIndex(overId, parentId);
+
+      const currentParentId = findParentId(nodesById, dragMeta.id);
+      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
       if (currentParentId === parentId && dropIndex !== undefined) {
-        const currentIndex = parentNode.children.findIndex(
-          (c) => c === dragMeta.id,
-        );
+        const currentIndex = parentNode.children.findIndex((c) => c === dragMeta.id);
         moveNode(
           dragMeta.id,
           parentId,
@@ -590,6 +555,7 @@ export default function Canvas() {
         moveNode(dragMeta.id, parentId, dropIndex);
       }
     }
+
     setDragMeta(null);
     setHoveredDropId(null);
   };
@@ -636,24 +602,13 @@ export default function Canvas() {
         visible={builderConfig.grid.show && mode === "edit"}
         zoom={viewport.zoom}
       />
-      <RenderNode
-        id={root.id}
-        hoveredDropId={hoveredDropId}
-        dragMeta={dragMeta}
-      />
+      <RenderNode id={root.id} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
     </div>
   );
 
   if (mode === "preview") {
     return (
-      <div
-        style={{
-          padding: 24,
-          overflow: "auto",
-          height: "100%",
-          background: "#f1f5f9",
-        }}
-      >
+      <div style={{ padding: 24, overflow: "auto", height: "100%", background: "#f1f5f9" }}>
         {canvasFrame}
       </div>
     );
@@ -675,7 +630,6 @@ export default function Canvas() {
           background: "#0e1520",
         }}
       >
-        {/* Zoom toolbar */}
         <div
           style={{
             display: "flex",
@@ -731,10 +685,7 @@ export default function Canvas() {
           )}
         </div>
 
-        {/* Canvas scroll area */}
-        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>
-          {canvasFrame}
-        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>{canvasFrame}</div>
       </div>
 
       <DragOverlay dropAnimation={null}>
