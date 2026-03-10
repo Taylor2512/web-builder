@@ -9,6 +9,7 @@ import type {
 
 const PROJECTS_KEY = 'web-builder-projects-v1'
 const SUBMISSIONS_KEY = 'web-builder-submissions-v1'
+const LEGACY_PROJECT_KEY = 'web-builder-project-v1'
 
 type LocalProjectRecord = {
   id: string
@@ -27,6 +28,21 @@ const readSubmissions = (): LocalSubmissionRecord[] =>
 
 const writeSubmissions = (records: LocalSubmissionRecord[]) =>
   localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(records))
+
+const normalizeLegacyProject = (input: EditorProject): EditorProject => {
+  const fallbackTemplate = baseTemplate()
+  return {
+    ...input,
+    flows: input.flows ?? fallbackTemplate.flows,
+    site: input.site ?? fallbackTemplate.site,
+    rootId: input.rootId ?? fallbackTemplate.rootId,
+  }
+}
+
+const readLegacyProject = (): EditorProject | null => {
+  const parsed = safeParse<EditorProject | null>(localStorage.getItem(LEGACY_PROJECT_KEY), null)
+  return parsed ? normalizeLegacyProject(parsed) : null
+}
 
 export const createLocalRepository = (): PersistenceRepository => ({
   mode: 'local',
@@ -70,10 +86,12 @@ export const createLocalRepository = (): PersistenceRepository => ({
 export const seedLocalRepository = (projectId: string) => {
   const records = readProjects()
   if (records.length > 0) return
+
+  const legacyProject = readLegacyProject()
   records.push({
     id: projectId,
     name: 'My Web Builder Project',
-    data: baseTemplate(),
+    data: legacyProject ?? baseTemplate(),
     updatedAt: new Date().toISOString(),
   })
   writeProjects(records)
