@@ -30,6 +30,7 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
   const setBindings = useEditorStore((s) => s.setBindings)
   const removeNode = useEditorStore((s) => s.removeNode)
   const duplicateNode = useEditorStore((s) => s.duplicateNode)
+  const showNode = useEditorStore((s) => s.showNode)
   const breakpoint = useEditorStore((s) => s.activeBreakpoint)
   const [tab, setTab] = useState<'props' | 'style' | 'layout' | 'responsive' | 'code'>('props')
   const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(node.props, null, 2))
@@ -97,6 +98,14 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
     </div>
 
     <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'grid', gap: 10, alignContent: 'start' }}>
+      {node.isHidden && (
+        <Card style={{ border: '1px solid rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--warning)' }}>Este componente está oculto en el lienzo.</span>
+            <GhostButton onClick={() => showNode(node.id)}>Mostrar componente</GhostButton>
+          </div>
+        </Card>
+      )}
       {tab === 'props' && <div style={{ display: 'grid', gap: 12 }}>
         {node.type === 'text' && <Card><Field label='Content'><TextArea value={node.props.text} onChange={(e) => updateProps(node.id, { text: e.target.value })} /></Field></Card>}
         {node.type === 'button' && <Card><Field label='Label'><TextInput value={node.props.label} onChange={(e) => updateProps(node.id, { label: e.target.value })} /></Field></Card>}
