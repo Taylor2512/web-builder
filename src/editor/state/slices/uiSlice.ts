@@ -18,7 +18,16 @@ export const createUiSlice: StateCreator<EditorStore, [], [], UIActions> = (set,
   },
 
   toggleLeftPanel() {
-    set((state) => ({ ui: { ...state.ui, leftPanelOpen: !state.ui.leftPanelOpen } }))
+    set((state) => {
+      const nextOpen = !state.ui.leftPanelOpen
+      return {
+        ui: {
+          ...state.ui,
+          leftPanelOpen: nextOpen,
+          activeLeftPanel: nextOpen ? (state.ui.activeLeftPanel ?? 'blocks') : null,
+        },
+      }
+    })
     get().persistProject()
   },
 
@@ -41,17 +50,35 @@ export const createUiSlice: StateCreator<EditorStore, [], [], UIActions> = (set,
   },
 
   setLeftPanelWidth(leftPanelWidth) {
-    set((state) => ({ ui: { ...state.ui, leftPanelWidth: clampPanelWidth(leftPanelWidth) } }))
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        leftPanelWidth: clampPanelWidth(leftPanelWidth),
+        leftPanelOpen: true,
+        activeLeftPanel: state.ui.activeLeftPanel ?? 'blocks',
+      },
+    }))
     get().persistProject()
   },
 
   setRightPanelWidth(rightPanelWidth) {
-    set((state) => ({ ui: { ...state.ui, rightPanelWidth: clampPanelWidth(rightPanelWidth) } }))
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        rightPanelWidth: clampPanelWidth(rightPanelWidth),
+        rightPanelOpen: true,
+      },
+    }))
     get().persistProject()
   },
 
   toggleFocusMode() {
-    set((state) => ({ ui: { ...state.ui, focusMode: !state.ui.focusMode } }))
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        focusMode: !state.ui.focusMode,
+      },
+    }))
     get().persistProject()
   },
 
