@@ -3,6 +3,11 @@ import { createDefaultFlow, type FlowsState } from '../flows/types/schema'
 export type EditorMode = 'edit' | 'preview'
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile'
 export type NodeId = string
+export type NodeBinding = {
+  id: string
+  targetPath: string
+  sourcePath: string
+}
 
 export type PageDef = {
   id: string
@@ -173,6 +178,8 @@ export type EditorNode<T extends NodeType = NodeType> = {
   props: NodePropsByType[T]
   styleByBreakpoint: StyleByBreakpoint
   children: NodeId[]
+  customCss?: string
+  bindings?: NodeBinding[]
 }
 
 export type Node = { [K in NodeType]: EditorNode<K> }[NodeType]
@@ -272,6 +279,8 @@ export const createNode = <T extends NodeType>(type: T, id: string = createId())
   props: structuredClone(defaults[type]),
   styleByBreakpoint: emptyStyle(),
   children: [],
+  customCss: '',
+  bindings: [],
 })
 
 export const containerTypes: NodeType[] = ['page', 'section', 'container', 'grid', 'repeater']

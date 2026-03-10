@@ -49,6 +49,7 @@ export default function SiteDesignPanel() {
       `'${font}', sans-serif`,
     )
   }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       {/* Project name preview */}
