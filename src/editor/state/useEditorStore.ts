@@ -64,6 +64,8 @@ type EditorState = EditorProject & {
   duplicateNode: (id: NodeId) => void
   moveNodeSibling: (id: NodeId, direction: 'up' | 'down') => void
   toggleNodeVisibility: (id: NodeId) => void
+  showNode: (id: NodeId) => void
+  showAllNodes: () => void
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -518,6 +520,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const node = state.nodesById[id]
         if (!node) return
         node.isHidden = !node.isHidden
+      }),
+    )
+    withAutosave(get())
+  },
+
+  showNode(id) {
+    set(
+      produce((state: EditorState) => {
+        const node = state.nodesById[id]
+        if (!node) return
+        node.isHidden = false
+      }),
+    )
+    withAutosave(get())
+  },
+
+  showAllNodes() {
+    set(
+      produce((state: EditorState) => {
+        Object.values(state.nodesById).forEach((node) => {
+          node.isHidden = false
+        })
       }),
     )
     withAutosave(get())
