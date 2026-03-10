@@ -14,6 +14,7 @@ const THEME_PRESETS = [
 const HEADING_FONTS = ['Inter', 'Montserrat', 'Playfair Display', 'Poppins', 'Raleway', 'Roboto']
 const BODY_FONTS = ['Inter', 'Lato', 'Merriweather', 'Nunito', 'Open Sans', 'Source Sans Pro']
 
+
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--muted)', textTransform: 'uppercase', padding: '14px 14px 8px' }}>
@@ -23,6 +24,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 export default function SiteDesignPanel() {
+
   const [primaryColor, setPrimaryColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#6366f1',
   )

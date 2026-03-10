@@ -22,7 +22,7 @@ const fallbackConfig: BuilderConfig = {
   grid: { size: 8, show: true, snap: true },
   snap: { grid: true, guides: true, spacing: false, threshold: 6 },
   blocks: {
-    enabled: ['section', 'container', 'grid', 'spacer', 'divider', 'text', 'image', 'button', 'form', 'dateInput', 'searchSelect', 'dataTable', 'searchBar', 'repeater'],
+    enabled: ['section', 'container', 'grid', 'spacer', 'divider', 'text', 'image', 'button', 'link', 'navbar', 'form', 'dateInput', 'searchSelect', 'dataTable', 'searchBar', 'repeater'],
     defaults: {},
   },
   constraints: {
