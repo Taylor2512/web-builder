@@ -19,15 +19,14 @@ import { useMemo, useState, useEffect } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
   containerTypes,
-  sanitizeUrl,
   type Breakpoint,
-  type FormField,
   type Node,
   type NodeType,
 } from "../types/schema";
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import { rendererRegistry } from "./renderers/rendererRegistry";
 
 type DragMeta = {
   id: string;
@@ -43,129 +42,6 @@ const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
   for (let i = 0; i <= maxIndex; i += 1)
     Object.assign(style, node.styleByBreakpoint[bpOrder[i]]);
   return style;
-};
-
-const validateField = (
-  field: FormField,
-  raw: FormDataEntryValue | null,
-): string | null => {
-  const value = typeof raw === "string" ? raw : "";
-  if (field.required && !value) return `${field.label} is required`;
-  if (field.type === "email" && value && !/^\S+@\S+\.\S+$/.test(value))
-    return `${field.label} must be an email`;
-  if (field.minLength && value.length < field.minLength)
-    return `${field.label} min length ${field.minLength}`;
-  if (field.maxLength && value.length > field.maxLength)
-    return `${field.label} max length ${field.maxLength}`;
-  if (field.pattern && value && !new RegExp(field.pattern).test(value))
-    return `${field.label} invalid format`;
-  return null;
-};
-
-/* ── Beautiful form preview ── */
-const FormPreview = ({ node }: { node: Extract<Node, { type: "form" }> }) => {
-  const submitForm = useEditorStore((s) => s.submitForm);
-  const [output, setOutput] = useState("");
-  const [error, setError] = useState("");
-
-  return (
-    <form
-      style={{
-        display: "grid",
-        gap: 12,
-        gridTemplateColumns: node.props.layout === "grid" ? "1fr 1fr" : "1fr",
-      }}
-      onSubmit={(event) => {
-        event.preventDefault();
-        setError("");
-        const formData = new FormData(event.currentTarget);
-        const payload: Record<string, unknown> = {};
-        for (const field of node.props.fields) {
-          const raw = formData.get(field.name);
-          const validation = validateField(field, raw);
-          if (validation) {
-            setError(validation);
-            return;
-          }
-          payload[field.name] =
-            field.type === "checkbox" || field.type === "switch" ? !!raw : raw;
-        }
-        setOutput(JSON.stringify(payload, null, 2));
-        submitForm(node.id, payload);
-      }}
-    >
-      {node.props.fields.map((field) => (
-        <label key={field.id} style={{ display: "grid", gap: 5, fontSize: 13 }}>
-          <span style={{ fontWeight: 600, color: "#374151" }}>
-            {field.label}
-            {field.required && (
-              <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>
-            )}
-          </span>
-          <input
-            type={field.type === "switch" ? "checkbox" : field.type}
-            name={field.name}
-            required={field.required}
-            placeholder={field.placeholder}
-            defaultValue={field.defaultValue}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1.5px solid #d1d5db",
-              outline: "none",
-              fontSize: 13,
-              color: "#111827",
-              background: "#f9fafb",
-            }}
-          />
-        </label>
-      ))}
-      <button
-        type="submit"
-        style={{
-          padding: "10px 20px",
-          borderRadius: 8,
-          border: "none",
-          background: "#6366f1",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        {node.props.submitText}
-      </button>
-      {error && (
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 8,
-            color: "#ef4444",
-            fontSize: 12,
-          }}
-        >
-          {error}
-        </div>
-      )}
-      {output && (
-        <pre
-          style={{
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
-            color: "#1e293b",
-            padding: 10,
-            borderRadius: 8,
-            fontSize: 11,
-            overflow: "auto",
-          }}
-        >
-          {output}
-        </pre>
-      )}
-    </form>
-  );
 };
 
 /* ── Node type color coding ── */
@@ -365,7 +241,6 @@ function RenderNode({
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
   const updateProps = useEditorStore((s) => s.updateProps);
-  const [isEditingText, setIsEditingText] = useState(false);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
     setNodeRef: setSortableRef,
@@ -395,206 +270,27 @@ function RenderNode({
   const isContainer = containerTypes.includes(node.type);
 
   /* ── Content per type ── */
-  let content: React.ReactNode = null;
-
-  if (node.type === "text") {
-    const Tag = node.props.tag as keyof React.JSX.IntrinsicElements;
-    content = isEditingText && mode === "edit" ? (
-      <Tag
-        contentEditable
-        suppressContentEditableWarning
-        onBlur={(e) => {
-          setIsEditingText(false);
-          updateProps(id, { text: e.currentTarget.textContent || "" });
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          textAlign: node.props.align,
-          margin: 0,
-          outline: "2px solid #6366f1",
-          minWidth: 50,
-          fontWeight: node.props.tag === "h1" ? 700 : node.props.tag === "h2" ? 600 : undefined,
-        }}
-      >
-        {node.props.text}
-      </Tag>
-    ) : (
-      <Tag
-        onDoubleClick={() => {
-          if (mode === "edit") setIsEditingText(true);
-        }}
-        style={{
-          textAlign: node.props.align,
-          margin: 0,
-          fontWeight: node.props.tag === "h1" ? 700 : node.props.tag === "h2" ? 600 : undefined,
-          cursor: mode === "edit" ? "text" : "inherit"
-        }}
-      >
-        {node.props.text || (
-          <span style={{ color: "#aaa", fontStyle: "italic" }}>
-            Empty text… (Double click to edit)
-          </span>
-        )}
-      </Tag>
-    );
-  }
-
-  if (node.type === "button") {
-    content = (
-      <a
-        href={sanitizeUrl(node.props.href)}
-        target={node.props.target}
-        rel="noreferrer"
-        style={{
-          display: "inline-block",
-          padding: "10px 22px",
-          borderRadius: 8,
-          background: "#6366f1",
-          color: "#fff",
-          textDecoration: "none",
-          fontWeight: 600,
-          fontSize: 14,
-        }}
-      >
-        {node.props.label || "Button"}
-      </a>
-    );
-  }
-
-  if (node.type === "image") {
-    if (node.props.src) {
-      content = (
-        <img
-          src={sanitizeUrl(node.props.src)}
-          alt={node.props.alt}
-          style={{
-            width: "100%",
-            display: "block",
-            objectFit: node.props.fit,
-            borderRadius: 4,
-          }}
+  const renderChildren = (keyPrefix = "") => (
+    <SortableContext items={node.children} strategy={rectSortingStrategy}>
+      {node.children.map((childId) => (
+        <RenderNode
+          key={`${keyPrefix}${childId}`}
+          id={childId}
+          hoveredDropId={hoveredDropId}
+          dragMeta={dragMeta}
         />
-      );
-    } else {
-      content = (
-        <div
-          style={{
-            minHeight: 120,
-            border: "2px dashed #d1d5db",
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#f9fafb",
-            color: "#9ca3af",
-            fontSize: 13,
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <span style={{ fontSize: 28 }}>⛶</span>
-          <span>Drop an image URL in the Inspector</span>
-        </div>
-      );
-    }
-  }
+      ))}
+    </SortableContext>
+  );
 
-  if (node.type === "spacer") {
-    content = (
-      <div style={{ height: node.props.size, position: "relative" }}>
-        {mode === "edit" && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderTop: "1px dashed #d1d5db",
-              borderBottom: "1px dashed #d1d5db",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 10,
-                color: "#94a3b8",
-                background: "#f8fafc",
-                padding: "2px 6px",
-                borderRadius: 4,
-              }}
-            >
-              {node.props.size}px spacer
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (node.type === "divider") {
-    content = (
-      <hr
-        style={{
-          border: "none",
-          borderTop: `${node.props.thickness}px solid #e2e8f0`,
-          margin: "4px 0",
-        }}
-      />
-    );
-  }
-
-  if (node.type === "form") {
-    content =
-      mode === "preview" ? (
-        <FormPreview node={node} />
-      ) : (
-        <div
-          style={{
-            border: "1px dashed #e2e8f0",
-            borderRadius: 8,
-            padding: "12px 14px",
-            background: "rgba(99,102,241,0.03)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <span style={{ fontSize: 14 }}>✎</span>
-            <span style={{ fontWeight: 600, fontSize: 13, color: "#374151" }}>
-              Form
-            </span>
-            <span
-              style={{ fontSize: 11, color: "#6b7280", marginLeft: "auto" }}
-            >
-              {node.props.fields.length} field
-              {node.props.fields.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {node.props.fields.map((f) => (
-              <span
-                key={f.id}
-                style={{
-                  padding: "3px 8px",
-                  borderRadius: 99,
-                  background: "#ede9fe",
-                  color: "#7c3aed",
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              >
-                {f.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      );
-  }
+  const renderNodeByType = rendererRegistry[node.type];
+  const rendered = renderNodeByType({
+    node: node as never,
+    mode,
+    renderChildren,
+    updateProps,
+  });
+  const content = rendered.content;
 
   /* ── Border / selection style ── */
   const editBorder =
@@ -695,16 +391,7 @@ function RenderNode({
 
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode
-              key={childId}
-              id={childId}
-              hoveredDropId={hoveredDropId}
-              dragMeta={dragMeta}
-            />
-          ))}
-        </SortableContext>
+        {!rendered.handlesChildren && renderChildren()}
 
         {/* Drop insert overlay */}
         {showInsertHint && (
