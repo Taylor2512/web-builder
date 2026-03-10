@@ -47,6 +47,13 @@ export default function FormBuilder() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId)
   const removeNode = useEditorStore((s) => s.removeNode)
   const nodesById = useEditorStore((s) => s.nodesById)
+  const persistenceMode = useEditorStore((s) => s.persistenceMode)
+  const persistencePreference = useEditorStore((s) => s.persistencePreference)
+  const persistenceError = useEditorStore((s) => s.persistenceError)
+  const setPersistencePreference = useEditorStore((s) => s.setPersistencePreference)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
+  const [isSwitchingPersistence, setIsSwitchingPersistence] = useState(false)
   const flows = useEditorStore((s) => s.flows)
   const site = useEditorStore((s) => s.site)
   const rootId = useEditorStore((s) => s.rootId)
@@ -136,35 +143,8 @@ export default function FormBuilder() {
       </div>
 
   useEffect(() => {
-    let cancelled = false
-    const hydrateFromRemote = async () => {
-      try {
-        const project = await loadRemoteProject()
-        if (!cancelled && project?.data) {
-          hydrate(JSON.stringify(project.data))
-          setSyncStatus('ok')
-        }
-      } catch {
-        if (!cancelled) setSyncStatus('error')
-      }
-    }
-    void hydrateFromRemote()
-    return () => { cancelled = true }
-  }, [hydrate])
-
-  useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      const snapshot = projectSnapshot({ projectName, rootId, nodesById, mode, flows, site })
-      setSyncStatus('syncing')
-      try {
-        await saveRemoteProject(snapshot, projectName)
-        setSyncStatus('ok')
-      } catch {
-        setSyncStatus('error')
-      }
-    }, 700)
-    return () => window.clearTimeout(timer)
-  }, [projectName, rootId, nodesById, mode, flows, site])
+    void setPersistencePreference(persistencePreference)
+  }, [persistencePreference, setPersistencePreference])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -224,6 +204,11 @@ export default function FormBuilder() {
   const filteredCommands = commandItems.filter((item) => item.label.toLowerCase().includes(quickQuery.toLowerCase()))
 
 
+  const syncDot = isSwitchingPersistence
+    ? { color: '#f59e0b', label: 'Cambiando modo…' }
+    : persistenceError
+      ? { color: '#ef4444', label: 'Error no bloqueante' }
+      : { color: '#22c55e', label: `Persistencia: ${persistenceMode}` }
   const syncDot = {
     idle: { color: '#64748b', label: 'Saved' },
     syncing: { color: '#f59e0b', label: 'Saving…' },
@@ -274,6 +259,38 @@ export default function FormBuilder() {
                 <button key={item.id} type='button' onClick={() => { item.run(); setShowQuickSearch(false); setQuickQuery('') }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>{item.label}</button>
               ))}
             </div>
+          )}
+
+          {/* Sync dot */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: syncDot.color }} />
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{syncDot.label}</span>
+          </div>
+          <select
+            value={persistencePreference}
+            onChange={(event) => {
+              setIsSwitchingPersistence(true)
+              void setPersistencePreference(event.target.value as 'auto' | 'local' | 'json-server').finally(() => {
+                setIsSwitchingPersistence(false)
+              })
+            }}
+            title='Modo de persistencia'
+            style={{
+              padding: '4px 22px 4px 8px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              appearance: 'none',
+            }}
+          >
+            <option value='auto'>Auto ({persistenceMode})</option>
+            <option value='local'>Local</option>
+            <option value='json-server'>JSON Server</option>
+          </select>
+          {persistenceError && (
+            <span style={{ fontSize: 10, color: 'var(--danger)' }}>{persistenceError}</span>
           )}
         </div>
 

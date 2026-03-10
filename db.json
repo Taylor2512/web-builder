@@ -3,432 +3,41 @@
     {
       "id": "p1",
       "name": "My Web Builder Project",
+      "updatedAt": "2026-03-10T00:00:00.000Z",
       "data": {
         "projectName": "My Web Builder Project",
         "rootId": "root-page",
+        "mode": "edit",
         "nodesById": {
           "root-page": {
             "id": "root-page",
             "type": "page",
-            "props": {
-              "title": "Landing Page"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "8znpk3w-mmkucmi8",
-              "6k8bwff-mmkv1dyc",
-              "8epa90e-mmkunzri",
-              "en9p9ts-mmkvcqig",
-              "r14yknd-mmkw03yp",
-              "vpdja2u-mmkw1kej",
-              "4ws80aa-mmkw1r4o",
-              "dvt9ted-mmkw1rs2",
-              "66abqtp-mmkw1rwx",
-              "jjgmfap-mmkw1s1j",
-              "pcpqlvg-mmkw1s66",
-              "9ey7ms9-mmkw1sat",
-              "qk1fj4w-mmkw1sfw",
-              "b0dfmou-mmkw1ska",
-              "oe69ohj-mmkw1spe",
-              "g04kss6-mmkw1su9",
-              "cvzj3a3-mmkw1szl",
-              "28jo5nn-mmkw1t4o"
-            ]
+            "props": { "title": "Landing Page" },
+            "styleByBreakpoint": { "desktop": {}, "tablet": {}, "mobile": {} },
+            "children": ["section-home"]
           },
-          "8znpk3w-mmkucmi8": {
-            "id": "8znpk3w-mmkucmi8",
+          "section-home": {
+            "id": "section-home",
             "type": "section",
-            "props": {
-              "name": "Section"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "4w32rq8-mmkucmi8",
-              "ndi807x-mmkucmi8",
-              "ptfvlel-mmkunvsp"
-            ]
+            "props": { "name": "Section" },
+            "styleByBreakpoint": { "desktop": {}, "tablet": {}, "mobile": {} },
+            "children": ["heading-home", "text-home"]
           },
-          "4w32rq8-mmkucmi8": {
-            "id": "4w32rq8-mmkucmi8",
+          "heading-home": {
+            "id": "heading-home",
             "type": "text",
-            "props": {
-              "text": "Build your page visually",
-              "tag": "h1",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
+            "props": { "text": "Build your page visually", "tag": "h1", "align": "left" },
+            "styleByBreakpoint": { "desktop": {}, "tablet": {}, "mobile": {} },
             "children": []
           },
-          "ndi807x-mmkucmi8": {
-            "id": "ndi807x-mmkucmi8",
+          "text-home": {
+            "id": "text-home",
             "type": "text",
-            "props": {
-              "text": "Drag blocks, style them, and preview instantly.",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "ptfvlel-mmkunvsp": {
-            "id": "ptfvlel-mmkunvsp",
-            "type": "container",
-            "props": {
-              "name": "Container"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "r6ltbov-mmkunx10"
-            ]
-          },
-          "r6ltbov-mmkunx10": {
-            "id": "r6ltbov-mmkunx10",
-            "type": "grid",
-            "props": {
-              "columns": 2,
-              "gap": 16
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "2vxqb75-mmkuny0n"
-            ]
-          },
-          "2vxqb75-mmkuny0n": {
-            "id": "2vxqb75-mmkuny0n",
-            "type": "spacer",
-            "props": {
-              "size": 4
-            },
-            "styleByBreakpoint": {
-              "desktop": {
-                "width": "469.08984375px",
-                "height": "70.546875px"
-              },
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "8epa90e-mmkunzri": {
-            "id": "8epa90e-mmkunzri",
-            "type": "divider",
-            "props": {
-              "thickness": 1
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "6k8bwff-mmkv1dyc": {
-            "id": "6k8bwff-mmkv1dyc",
-            "type": "image",
-            "props": {
-              "src": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200",
-              "alt": "Image",
-              "fit": "cover"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "page-root-gfuo7rx-mmkv2txi": {
-            "id": "page-root-gfuo7rx-mmkv2txi",
-            "type": "page",
-            "props": {
-              "title": "Landing Page"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "w2dp9eb-mmkv2txi"
-            ]
-          },
-          "w2dp9eb-mmkv2txi": {
-            "id": "w2dp9eb-mmkv2txi",
-            "type": "section",
-            "props": {
-              "name": "Section"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "en9p9ts-mmkvcqig": {
-            "id": "en9p9ts-mmkvcqig",
-            "type": "container",
-            "props": {
-              "name": "Container"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": [
-              "pydln0o-mmkvjri2"
-            ]
-          },
-          "pydln0o-mmkvjri2": {
-            "id": "pydln0o-mmkvjri2",
-            "type": "container",
-            "props": {
-              "name": "Container"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "r14yknd-mmkw03yp": {
-            "id": "r14yknd-mmkw03yp",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "vpdja2u-mmkw1kej": {
-            "id": "vpdja2u-mmkw1kej",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "4ws80aa-mmkw1r4o": {
-            "id": "4ws80aa-mmkw1r4o",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "dvt9ted-mmkw1rs2": {
-            "id": "dvt9ted-mmkw1rs2",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "66abqtp-mmkw1rwx": {
-            "id": "66abqtp-mmkw1rwx",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "jjgmfap-mmkw1s1j": {
-            "id": "jjgmfap-mmkw1s1j",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "pcpqlvg-mmkw1s66": {
-            "id": "pcpqlvg-mmkw1s66",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "9ey7ms9-mmkw1sat": {
-            "id": "9ey7ms9-mmkw1sat",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "qk1fj4w-mmkw1sfw": {
-            "id": "qk1fj4w-mmkw1sfw",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "b0dfmou-mmkw1ska": {
-            "id": "b0dfmou-mmkw1ska",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "oe69ohj-mmkw1spe": {
-            "id": "oe69ohj-mmkw1spe",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "g04kss6-mmkw1su9": {
-            "id": "g04kss6-mmkw1su9",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "cvzj3a3-mmkw1szl": {
-            "id": "cvzj3a3-mmkw1szl",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "left"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
-            "children": []
-          },
-          "28jo5nn-mmkw1t4o": {
-            "id": "28jo5nn-mmkw1t4o",
-            "type": "text",
-            "props": {
-              "text": "Editable text",
-              "tag": "p",
-              "align": "justify"
-            },
-            "styleByBreakpoint": {
-              "desktop": {},
-              "tablet": {},
-              "mobile": {}
-            },
+            "props": { "text": "Drag blocks, style them, and preview instantly.", "tag": "p", "align": "left" },
+            "styleByBreakpoint": { "desktop": {}, "tablet": {}, "mobile": {} },
             "children": []
           }
         },
-        "mode": "edit",
         "flows": {
           "activeFlowId": "flow-main",
           "flowsById": {
@@ -436,58 +45,31 @@
               "id": "flow-main",
               "name": "Main Flow",
               "variables": {},
-              "createdAt": "2026-03-10T16:45:22.632Z",
-              "updatedAt": "2026-03-10T16:45:22.632Z",
+              "createdAt": "2026-03-10T00:00:00.000Z",
+              "updatedAt": "2026-03-10T00:00:00.000Z",
               "graph": {
                 "nodesById": {
-                  "flow-main-start": {
-                    "id": "flow-main-start",
-                    "type": "start",
-                    "label": "Start",
-                    "x": 120,
-                    "y": 120
-                  },
-                  "flow-main-end": {
-                    "id": "flow-main-end",
-                    "type": "end",
-                    "label": "End",
-                    "x": 420,
-                    "y": 120
-                  }
+                  "flow-main-start": { "id": "flow-main-start", "type": "start", "label": "Start", "x": 120, "y": 120 },
+                  "flow-main-end": { "id": "flow-main-end", "type": "end", "label": "End", "x": 420, "y": 120 }
                 },
-                "edges": [
-                  {
-                    "id": "flow-main-edge-start-end",
-                    "from": "flow-main-start",
-                    "to": "flow-main-end"
-                  }
-                ]
+                "edges": [{ "id": "flow-main-edge-start-end", "from": "flow-main-start", "to": "flow-main-end" }]
               }
             }
           },
-          "flowOrder": [
-            "flow-main"
-          ]
+          "flowOrder": ["flow-main"]
         },
         "site": {
           "pages": [
-            {
-              "id": "page-home",
-              "name": "Home",
-              "path": "/",
-              "rootId": "root-page",
-              "title": "Home"
-            },
-            {
-              "id": "page-v0qfvcd-mmkv2txi",
-              "name": "Page 2",
-              "path": "/page-2",
-              "rootId": "page-root-gfuo7rx-mmkv2txi",
-              "title": "Page 2"
-            }
+            { "id": "page-home", "name": "Home", "path": "/", "rootId": "root-page", "title": "Home" }
           ],
           "activePageId": "page-home"
         }
+      }
+    }
+  ],
+  "submissions": [],
+  "events": [],
+  "flows": []
       },
       "updatedAt": "2026-03-10T18:12:41.390Z"
     }

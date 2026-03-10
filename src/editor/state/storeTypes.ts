@@ -1,4 +1,5 @@
 import type { BuilderConfig } from '../config/loadBuilderConfig'
+import type { PersistenceMode, PersistencePreference } from '../persistence'
 import type { FlowVariable } from '../flows/types/schema'
 import type {
   Breakpoint,
@@ -53,6 +54,7 @@ export type PersistenceActions = {
   setProjectName: (name: string) => void
   setBuilderConfig: (config: BuilderConfig) => void
   persistProject: () => void
+  setPersistencePreference: (preference: PersistencePreference) => Promise<void>
 }
 
 export type UIActions = {
@@ -66,6 +68,9 @@ export type EditorStore = EditorProject & {
   activeBreakpoint: Breakpoint
   submissions: SubmissionMap
   builderConfig: BuilderConfig
+  persistenceMode: PersistenceMode
+  persistencePreference: PersistencePreference
+  persistenceError: string | null
 } & SiteActions
   & NodesActions
   & FlowsActions
