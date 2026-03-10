@@ -2,32 +2,24 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  rectSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState, useEffect } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
   containerTypes,
-  sanitizeUrl,
   type Breakpoint,
-  type FormField,
   type Node,
   type NodeType,
 } from "../types/schema";
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import { rendererRegistry } from "./renderers/rendererRegistry";
 
 type DragMeta = {
   id: string;
@@ -44,6 +36,32 @@ const mergeStyle = (node: Node, activeBreakpoint: Breakpoint) => {
     Object.assign(style, node.styleByBreakpoint[bpOrder[i]]);
   return style;
 };
+
+
+const scopeCustomCss = (nodeId: string, css: string) => {
+  if (!css.trim()) return ''
+  return css
+    .split('}')
+    .map((chunk) => {
+      const [selector, body] = chunk.split('{')
+      if (!selector || !body) return ''
+      const scopedSelector = selector
+        .split(',')
+        .map((item) => {
+          const normalized = item.trim()
+          if (!normalized) return ''
+          return normalized.includes('&')
+            ? normalized.replaceAll('&', `[data-node-id="${nodeId}"]`)
+            : `[data-node-id="${nodeId}"] ${normalized}`
+        })
+        .filter(Boolean)
+        .join(', ')
+      if (!scopedSelector) return ''
+      return `${scopedSelector} {${body}}`
+    })
+    .filter(Boolean)
+    .join('\n')
+}
 
 const validateField = (
   field: FormField,
@@ -365,7 +383,7 @@ function RenderNode({
   const selectNode = useEditorStore((s) => s.selectNode);
   const mode = useEditorStore((s) => s.mode);
   const updateProps = useEditorStore((s) => s.updateProps);
-  const [isEditingText, setIsEditingText] = useState(false);
+  const submitForm = useEditorStore((s) => s.submitForm);
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint);
   const {
     setNodeRef: setSortableRef,
@@ -395,206 +413,28 @@ function RenderNode({
   const isContainer = containerTypes.includes(node.type);
 
   /* ── Content per type ── */
-  let content: React.ReactNode = null;
-
-  if (node.type === "text") {
-    const Tag = node.props.tag as keyof React.JSX.IntrinsicElements;
-    content = isEditingText && mode === "edit" ? (
-      <Tag
-        contentEditable
-        suppressContentEditableWarning
-        onBlur={(e) => {
-          setIsEditingText(false);
-          updateProps(id, { text: e.currentTarget.textContent || "" });
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          textAlign: node.props.align,
-          margin: 0,
-          outline: "2px solid #6366f1",
-          minWidth: 50,
-          fontWeight: node.props.tag === "h1" ? 700 : node.props.tag === "h2" ? 600 : undefined,
-        }}
-      >
-        {node.props.text}
-      </Tag>
-    ) : (
-      <Tag
-        onDoubleClick={() => {
-          if (mode === "edit") setIsEditingText(true);
-        }}
-        style={{
-          textAlign: node.props.align,
-          margin: 0,
-          fontWeight: node.props.tag === "h1" ? 700 : node.props.tag === "h2" ? 600 : undefined,
-          cursor: mode === "edit" ? "text" : "inherit"
-        }}
-      >
-        {node.props.text || (
-          <span style={{ color: "#aaa", fontStyle: "italic" }}>
-            Empty text… (Double click to edit)
-          </span>
-        )}
-      </Tag>
-    );
-  }
-
-  if (node.type === "button") {
-    content = (
-      <a
-        href={sanitizeUrl(node.props.href)}
-        target={node.props.target}
-        rel="noreferrer"
-        style={{
-          display: "inline-block",
-          padding: "10px 22px",
-          borderRadius: 8,
-          background: "#6366f1",
-          color: "#fff",
-          textDecoration: "none",
-          fontWeight: 600,
-          fontSize: 14,
-        }}
-      >
-        {node.props.label || "Button"}
-      </a>
-    );
-  }
-
-  if (node.type === "image") {
-    if (node.props.src) {
-      content = (
-        <img
-          src={sanitizeUrl(node.props.src)}
-          alt={node.props.alt}
-          style={{
-            width: "100%",
-            display: "block",
-            objectFit: node.props.fit,
-            borderRadius: 4,
-          }}
+  const renderChildren = (keyPrefix = "") => (
+    <SortableContext items={node.children} strategy={rectSortingStrategy}>
+      {node.children.map((childId) => (
+        <RenderNode
+          key={`${keyPrefix}${childId}`}
+          id={childId}
+          hoveredDropId={hoveredDropId}
+          dragMeta={dragMeta}
         />
-      );
-    } else {
-      content = (
-        <div
-          style={{
-            minHeight: 120,
-            border: "2px dashed #d1d5db",
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#f9fafb",
-            color: "#9ca3af",
-            fontSize: 13,
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <span style={{ fontSize: 28 }}>⛶</span>
-          <span>Drop an image URL in the Inspector</span>
-        </div>
-      );
-    }
-  }
+      ))}
+    </SortableContext>
+  );
 
-  if (node.type === "spacer") {
-    content = (
-      <div style={{ height: node.props.size, position: "relative" }}>
-        {mode === "edit" && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderTop: "1px dashed #d1d5db",
-              borderBottom: "1px dashed #d1d5db",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 10,
-                color: "#94a3b8",
-                background: "#f8fafc",
-                padding: "2px 6px",
-                borderRadius: 4,
-              }}
-            >
-              {node.props.size}px spacer
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (node.type === "divider") {
-    content = (
-      <hr
-        style={{
-          border: "none",
-          borderTop: `${node.props.thickness}px solid #e2e8f0`,
-          margin: "4px 0",
-        }}
-      />
-    );
-  }
-
-  if (node.type === "form") {
-    content =
-      mode === "preview" ? (
-        <FormPreview node={node} />
-      ) : (
-        <div
-          style={{
-            border: "1px dashed #e2e8f0",
-            borderRadius: 8,
-            padding: "12px 14px",
-            background: "rgba(99,102,241,0.03)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <span style={{ fontSize: 14 }}>✎</span>
-            <span style={{ fontWeight: 600, fontSize: 13, color: "#374151" }}>
-              Form
-            </span>
-            <span
-              style={{ fontSize: 11, color: "#6b7280", marginLeft: "auto" }}
-            >
-              {node.props.fields.length} field
-              {node.props.fields.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {node.props.fields.map((f) => (
-              <span
-                key={f.id}
-                style={{
-                  padding: "3px 8px",
-                  borderRadius: 99,
-                  background: "#ede9fe",
-                  color: "#7c3aed",
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              >
-                {f.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      );
-  }
+  const renderNodeByType = rendererRegistry[node.type];
+  const rendered = renderNodeByType({
+    node: node as never,
+    mode,
+    renderChildren,
+    updateProps,
+    submitForm,
+  });
+  const content = rendered.content;
 
   /* ── Border / selection style ── */
   const editBorder =
@@ -636,6 +476,7 @@ function RenderNode({
     >
       <div
         ref={setDroppableRef}
+        data-node-id={node.id}
         onClick={(event) => {
           event.stopPropagation();
           if (mode === "edit") selectNode(id);
@@ -693,18 +534,10 @@ function RenderNode({
             </div>
           )}
 
+        {node.customCss && <style>{scopeCustomCss(node.id, node.customCss)}</style>}
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode
-              key={childId}
-              id={childId}
-              hoveredDropId={hoveredDropId}
-              dragMeta={dragMeta}
-            />
-          ))}
-        </SortableContext>
+        {!rendered.handlesChildren && renderChildren()}
 
         {/* Drop insert overlay */}
         {showInsertHint && (
@@ -783,15 +616,16 @@ export default function Canvas() {
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Backspace" || e.key === "Delete") {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Backspace" || event.key === "Delete") {
         const activeEl = document.activeElement as HTMLElement | null;
         if (
           activeEl?.tagName === "INPUT" ||
           activeEl?.tagName === "TEXTAREA" ||
           activeEl?.isContentEditable
-        )
+        ) {
           return;
+        }
 
         const state = useEditorStore.getState();
         if (state.mode === "edit" && state.selectedNodeId) {
@@ -802,9 +636,11 @@ export default function Canvas() {
         }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
   const [hoveredDropId, setHoveredDropId] = useState<string | null>(null);
   const { viewport, zoomIn, zoomOut, resetViewport } = useViewport();
 
@@ -813,53 +649,11 @@ export default function Canvas() {
   );
   const root = nodesById[rootId];
 
-  const findParentId = (childId: string) =>
-    Object.values(nodesById).find((n) => n.children.includes(childId))?.id;
-
-  const isDescendant = (ancestorId: string, targetId: string): boolean => {
-    const n = nodesById[ancestorId];
-    if (!n) return false;
-    if (n.children.includes(targetId)) return true;
-    return n.children.some((cId) => isDescendant(cId, targetId));
-  };
-
-  const isAllowedParent = (childType: NodeType, parentType: NodeType) => {
-    const allowed = builderConfig.constraints.allowedParents[childType];
-    return !allowed || allowed.includes(parentType);
-  };
-
-  const hasChildCapacity = (parentId: string) => {
-    const parent = nodesById[parentId];
-    if (!parent) return false;
-    const max = builderConfig.constraints.maxChildren[parent.type];
-    return typeof max !== "number" || parent.children.length < max;
-  };
-
-  const resolveDropParent = (overId: string | null) => {
-    if (!overId) return rootId;
-    if (overId.startsWith("drop-")) return overId.replace("drop-", "");
-    const overNode = nodesById[overId];
-    if (!overNode) return rootId;
-    if (containerTypes.includes(overNode.type)) return overNode.id;
-    return findParentId(overNode.id) ?? rootId;
-  };
-
-  const resolveDropIndex = (overId: string | null, parentId: string) => {
-    if (!overId || overId.startsWith("drop-")) return undefined;
-    const parentNode = nodesById[parentId];
-    if (!parentNode) return undefined;
-    const idx = parentNode.children.findIndex((c) => c === overId);
-    return idx >= 0 ? idx : undefined;
-  };
-
   const onDragStart = (event: DragStartEvent) => {
     setDragMeta({
       id: String(event.active.id),
-      blockType: event.active.data.current?.blockType as
-        | Node["type"]
-        | undefined,
-      source:
-        (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
+      blockType: event.active.data.current?.blockType as Node["type"] | undefined,
+      source: (event.active.data.current?.source as DragMeta["source"]) ?? "canvas",
     });
     setHoveredDropId(null);
   };
@@ -867,31 +661,42 @@ export default function Canvas() {
   const onDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id ? String(event.over.id) : null;
     if (!dragMeta) return;
-    const parentId = resolveDropParent(overId);
+
+    const parentId = resolveDropParent(overId, nodesById, rootId);
     const parentNode = nodesById[parentId];
     if (!parentNode) return;
 
     if (dragMeta.source === "palette" && dragMeta.blockType) {
-      const dropIndex = resolveDropIndex(overId, parentId);
+      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
       if (
-        isAllowedParent(dragMeta.blockType, parentNode.type) &&
-        hasChildCapacity(parentId)
+        isAllowedParent(
+          dragMeta.blockType,
+          parentNode.type,
+          builderConfig.constraints.allowedParents,
+        ) &&
+        hasChildCapacity(
+          parentId,
+          nodesById,
+          builderConfig.constraints.maxChildren,
+        )
       ) {
         addNode(parentId, buildNode(dragMeta.blockType), dropIndex);
       }
     }
 
     if (dragMeta.source === "canvas") {
-      if (dragMeta.id === parentId || isDescendant(dragMeta.id, parentId)) {
+      if (
+        dragMeta.id === parentId ||
+        isDescendant(nodesById, dragMeta.id, parentId)
+      ) {
         setDragMeta(null);
         return;
       }
-      const currentParentId = findParentId(dragMeta.id);
-      const dropIndex = resolveDropIndex(overId, parentId);
+
+      const currentParentId = findParentId(nodesById, dragMeta.id);
+      const dropIndex = resolveDropIndex(overId, parentId, nodesById);
       if (currentParentId === parentId && dropIndex !== undefined) {
-        const currentIndex = parentNode.children.findIndex(
-          (c) => c === dragMeta.id,
-        );
+        const currentIndex = parentNode.children.findIndex((c) => c === dragMeta.id);
         moveNode(
           dragMeta.id,
           parentId,
@@ -901,6 +706,7 @@ export default function Canvas() {
         moveNode(dragMeta.id, parentId, dropIndex);
       }
     }
+
     setDragMeta(null);
     setHoveredDropId(null);
   };
@@ -947,24 +753,13 @@ export default function Canvas() {
         visible={builderConfig.grid.show && mode === "edit"}
         zoom={viewport.zoom}
       />
-      <RenderNode
-        id={root.id}
-        hoveredDropId={hoveredDropId}
-        dragMeta={dragMeta}
-      />
+      <RenderNode id={root.id} hoveredDropId={hoveredDropId} dragMeta={dragMeta} />
     </div>
   );
 
   if (mode === "preview") {
     return (
-      <div
-        style={{
-          padding: 24,
-          overflow: "auto",
-          height: "100%",
-          background: "#f1f5f9",
-        }}
-      >
+      <div style={{ padding: 24, overflow: "auto", height: "100%", background: "#f1f5f9" }}>
         {canvasFrame}
       </div>
     );
@@ -986,7 +781,6 @@ export default function Canvas() {
           background: "#0e1520",
         }}
       >
-        {/* Zoom toolbar */}
         <div
           style={{
             display: "flex",
@@ -1042,10 +836,7 @@ export default function Canvas() {
           )}
         </div>
 
-        {/* Canvas scroll area */}
-        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>
-          {canvasFrame}
-        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 40 }}>{canvasFrame}</div>
       </div>
 
       <DragOverlay dropAnimation={null}>
