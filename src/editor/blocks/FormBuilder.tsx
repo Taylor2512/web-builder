@@ -12,6 +12,11 @@ import PagesPanel from '../panels/PagesPanel'
 import SiteDesignPanel from '../panels/SiteDesignPanel'
 
 const MODULES = ['agregar', 'paginas', 'diseno', 'media', 'datos', 'flujos'] as const
+const BREAKPOINTS = [
+  { id: 'desktop', label: 'Desktop' },
+  { id: 'tablet', label: 'Tablet' },
+  { id: 'mobile', label: 'Mobile' },
+] as const
 
 type ModuleId = typeof MODULES[number]
 
@@ -21,6 +26,7 @@ export default function FormBuilder() {
   const projectName = useEditorStore((s) => s.projectName)
   const setProjectName = useEditorStore((s) => s.setProjectName)
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
+  const setBreakpoint = useEditorStore((s) => s.setBreakpoint)
   const serialize = useEditorStore((s) => s.serialize)
   const hydrate = useEditorStore((s) => s.hydrate)
   const reset = useEditorStore((s) => s.reset)
@@ -139,12 +145,13 @@ export default function FormBuilder() {
       { id: 'preview', label: mode === 'edit' ? 'Cambiar a Preview' : 'Cambiar a Edit', run: () => setMode(mode === 'edit' ? 'preview' : 'edit') },
       { id: 'duplicate', label: 'Duplicar nodo seleccionado', run: () => selectedNodeId && duplicateNode(selectedNodeId) },
       { id: 'lock', label: isLocked ? 'Desbloquear nodo seleccionado' : 'Bloquear nodo seleccionado', run: toggleLock },
+      ...BREAKPOINTS.map((breakpoint) => ({ id: `breakpoint-${breakpoint.id}`, label: `Cambiar a ${breakpoint.label}`, run: () => setBreakpoint(breakpoint.id) })),
       { id: 'help', label: 'Abrir ayuda de atajos', run: () => setShowShortcuts(true) },
       ...MODULES.map((item) => ({ id: `module-${item}`, label: `Abrir módulo: ${item}`, run: () => setModule(item) })),
       ...builderConfig.blocks.enabled.map((type) => ({ id: `hint-${type}`, label: `Bloque disponible: ${type}`, run: () => setModule('agregar') })),
     ]
     return actions
-  }, [mode, selectedNodeId, duplicateNode, isLocked, setMode, builderConfig.blocks.enabled])
+  }, [mode, selectedNodeId, duplicateNode, isLocked, setMode, builderConfig.blocks.enabled, setBreakpoint])
 
   const filteredCommands = commandItems.filter((item) => item.label.toLowerCase().includes(quickQuery.toLowerCase()))
 
@@ -203,6 +210,26 @@ export default function FormBuilder() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            {BREAKPOINTS.map((breakpoint) => (
+              <button
+                key={breakpoint.id}
+                type='button'
+                onClick={() => setBreakpoint(breakpoint.id)}
+                style={{
+                  border: 'none',
+                  background: activeBreakpoint === breakpoint.id ? 'var(--primary-dim)' : 'transparent',
+                  color: activeBreakpoint === breakpoint.id ? 'var(--primary)' : 'var(--text-secondary)',
+                  padding: '5px 8px',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                {breakpoint.label}
+              </button>
+            ))}
+          </div>
           <button type='button' onClick={() => setShowShortcuts(true)} style={{ border: '1px solid var(--border)', background: 'transparent', borderRadius: 6, color: 'var(--text-secondary)', padding: '5px 8px', cursor: 'pointer' }}>?</button>
           <GhostButton onClick={handleExport} style={{ fontSize: 11 }}>↑ Export</GhostButton>
           <GhostButton onClick={() => fileRef.current?.click()} style={{ fontSize: 11 }}>↓ Import</GhostButton>
