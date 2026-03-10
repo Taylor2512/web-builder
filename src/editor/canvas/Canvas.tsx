@@ -15,7 +15,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { buildNode, useEditorStore } from "../state/useEditorStore";
 import {
   containerTypes,
@@ -28,12 +28,19 @@ import {
 import GridOverlay from "./viewport/GridOverlay";
 import { useViewport } from "./viewport/useViewport";
 import { IconButton } from "../../shared/ui";
+import {
+  resolveBinding,
+  type BindingError,
+} from "../bindings/resolveBinding";
 
 type DragMeta = {
   id: string;
   blockType?: Node["type"];
   source: "palette" | "canvas";
 };
+
+type BindingIssue = BindingError & { nodeId: string; prop: string };
+type BindingContext = Record<string, unknown>;
 
 const bpOrder: Breakpoint[] = ["desktop", "tablet", "mobile"];
 
@@ -187,14 +194,16 @@ const TYPE_COLOR: Record<string, string> = {
   repeater: "#f59e0b",
 };
 
-/* ── Edit-mode node toolbar ── */
-function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
-  const removeNode = useEditorStore((s) => s.removeNode);
-  const duplicateNode = useEditorStore((s) => s.duplicateNode);
-  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
-  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
-
-  const ToolBtn = ({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) => (
+function ToolbarButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
     <button
       onClick={onClick}
       title={title}
@@ -207,6 +216,14 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
       {children}
     </button>
   );
+}
+
+/* ── Edit-mode node toolbar ── */
+function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
+  const removeNode = useEditorStore((s) => s.removeNode);
+  const duplicateNode = useEditorStore((s) => s.duplicateNode);
+  const moveNodeSibling = useEditorStore((s) => s.moveNodeSibling);
+  const accent = TYPE_COLOR[node.type] ?? "#6366f1";
 
   return (
     <div
@@ -249,15 +266,15 @@ function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => void }) {
           background: "rgba(0,0,0,0.75)", borderRadius: "6px 6px 0 0",
           padding: "3px 5px", backdropFilter: "blur(6px)",
         }}>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolBtn>
-          <ToolBtn onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolBtn>
-          <ToolBtn onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolBtn>
-          <ToolBtn
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "up")} title="Mover arriba">↑</ToolbarButton>
+          <ToolbarButton onClick={() => moveNodeSibling(node.id, "down")} title="Mover abajo">↓</ToolbarButton>
+          <ToolbarButton onClick={() => duplicateNode(node.id)} title="Duplicar">⧉</ToolbarButton>
+          <ToolbarButton
             onClick={() => { onDelete(); removeNode(node.id); }}
             title="Eliminar bloque"
           >
             <span style={{ color: "#fca5a5" }}>✕</span>
-          </ToolBtn>
+          </ToolbarButton>
         </div>
       )}
     </div>
@@ -355,10 +372,14 @@ function RenderNode({
   id,
   hoveredDropId,
   dragMeta,
+  bindingContext,
+  onBindingIssues,
 }: {
   id: string;
   hoveredDropId: string | null;
   dragMeta: DragMeta | null;
+  bindingContext: BindingContext;
+  onBindingIssues: (nodeId: string, issues: BindingIssue[]) => void;
 }) {
   const node = useEditorStore((s) => s.nodesById[id]);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
@@ -393,11 +414,25 @@ function RenderNode({
     mode === "edit" &&
     dragMeta?.source === "canvas";
   const isContainer = containerTypes.includes(node.type);
+  const nodeBindingContext = bindingContext;
+
+  const resolveNodeBinding = (prop: string, rawValue: unknown) => {
+    const result = resolveBinding(rawValue, nodeBindingContext);
+    return {
+      value: result.value,
+      issues: result.errors.map((error) => ({ ...error, nodeId: node.id, prop })),
+    };
+  };
+
+  const nodeIssues: BindingIssue[] = [];
 
   /* ── Content per type ── */
   let content: React.ReactNode = null;
 
   if (node.type === "text") {
+    const resolvedText = resolveNodeBinding("text", node.props.text);
+    nodeIssues.push(...resolvedText.issues);
+    const textValue = typeof resolvedText.value === "string" ? resolvedText.value : String(resolvedText.value ?? "");
     const Tag = node.props.tag as keyof React.JSX.IntrinsicElements;
     content = isEditingText && mode === "edit" ? (
       <Tag
@@ -430,7 +465,7 @@ function RenderNode({
           cursor: mode === "edit" ? "text" : "inherit"
         }}
       >
-        {node.props.text || (
+        {(mode === "preview" ? textValue : node.props.text) || (
           <span style={{ color: "#aaa", fontStyle: "italic" }}>
             Empty text… (Double click to edit)
           </span>
@@ -462,11 +497,16 @@ function RenderNode({
   }
 
   if (node.type === "image") {
-    if (node.props.src) {
+    const resolvedSrc = resolveNodeBinding("src", node.props.src);
+    const resolvedAlt = resolveNodeBinding("alt", node.props.alt);
+    nodeIssues.push(...resolvedSrc.issues, ...resolvedAlt.issues);
+    const srcValue = String(resolvedSrc.value ?? "");
+    const altValue = String(resolvedAlt.value ?? "");
+    if (srcValue) {
       content = (
         <img
-          src={sanitizeUrl(node.props.src)}
-          alt={node.props.alt}
+          src={sanitizeUrl(srcValue)}
+          alt={altValue}
           style={{
             width: "100%",
             display: "block",
@@ -497,6 +537,81 @@ function RenderNode({
         </div>
       );
     }
+  }
+
+  if (node.type === "searchSelect") {
+    const sourcePath = resolveNodeBinding("dataPath", node.props.dataPath ?? "");
+    nodeIssues.push(...sourcePath.issues);
+    const dynamicOptions = Array.isArray(sourcePath.value)
+      ? sourcePath.value
+      : [];
+    const options =
+      mode === "preview" && node.props.source === "dataSource"
+        ? dynamicOptions.map((option, index) => ({
+            id: `bound-${index}`,
+            label: String((option as Record<string, unknown>)?.label ?? option),
+            value: String((option as Record<string, unknown>)?.value ?? option),
+          }))
+        : node.props.options;
+    content = (
+      <label style={{ display: "grid", gap: 5, fontSize: 13 }}>
+        <span style={{ fontWeight: 600, color: "#374151" }}>{node.props.label}</span>
+        <select
+          multiple={node.props.multiple}
+          name={node.props.name}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #d1d5db" }}
+        >
+          {!node.props.multiple && <option value="">{node.props.placeholder}</option>}
+          {options.map((option) => (
+            <option key={option.id} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  if (node.type === "dataTable") {
+    const rowsBinding = resolveNodeBinding("dataPath", node.props.dataPath ?? "");
+    nodeIssues.push(...rowsBinding.issues);
+    const rows =
+      mode === "preview" && node.props.source === "dataSource" && Array.isArray(rowsBinding.value)
+        ? rowsBinding.value
+        : node.props.rows;
+
+    content = (
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr>
+              {node.props.columns.map((column) => (
+                <th
+                  key={column.id}
+                  style={{ textAlign: column.align, borderBottom: "1px solid #e5e7eb", padding: "8px" }}
+                >
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(rows as Record<string, unknown>[]).slice(0, node.props.pageSize || 10).map((row, rowIndex) => (
+              <tr key={`row-${rowIndex}`}>
+                {node.props.columns.map((column) => (
+                  <td
+                    key={column.id}
+                    style={{ textAlign: column.align, borderBottom: "1px solid #f1f5f9", padding: "8px" }}
+                  >
+                    {String(row[column.accessor] ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   if (node.type === "spacer") {
@@ -595,6 +710,24 @@ function RenderNode({
         </div>
       );
   }
+
+  const repeaterBinding =
+    node.type === "repeater"
+      ? resolveNodeBinding("dataPath", node.props.dataPath)
+      : null;
+  if (repeaterBinding) nodeIssues.push(...repeaterBinding.issues);
+  const repeaterItems = repeaterBinding?.value;
+
+  const issuesSignature = nodeIssues
+    .map((issue) => `${issue.prop}|${issue.expression}|${issue.message}`)
+    .join(";");
+
+  /* eslint-disable react-hooks/exhaustive-deps */
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    onBindingIssues(node.id, nodeIssues);
+  }, [node.id, onBindingIssues, issuesSignature]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   /* ── Border / selection style ── */
   const editBorder =
@@ -695,16 +828,35 @@ function RenderNode({
 
         {content}
 
-        <SortableContext items={node.children} strategy={rectSortingStrategy}>
-          {node.children.map((childId) => (
-            <RenderNode
-              key={childId}
-              id={childId}
-              hoveredDropId={hoveredDropId}
-              dragMeta={dragMeta}
-            />
-          ))}
-        </SortableContext>
+        {node.type === "repeater" && mode === "preview" && Array.isArray(repeaterItems) ? (
+          (repeaterItems as unknown[]).map((item, index) => (
+            <div key={`${node.id}-item-${index}`} style={{ marginBottom: 8 }}>
+              {node.children.map((childId) => (
+                <RenderNode
+                  key={`${childId}-${index}`}
+                  id={childId}
+                  hoveredDropId={hoveredDropId}
+                  dragMeta={dragMeta}
+                  bindingContext={{ ...nodeBindingContext, [node.props.itemContextName]: item, index }}
+                  onBindingIssues={onBindingIssues}
+                />
+              ))}
+            </div>
+          ))
+        ) : (
+          <SortableContext items={node.children} strategy={rectSortingStrategy}>
+            {node.children.map((childId) => (
+              <RenderNode
+                key={childId}
+                id={childId}
+                hoveredDropId={hoveredDropId}
+                dragMeta={dragMeta}
+                bindingContext={nodeBindingContext}
+                onBindingIssues={onBindingIssues}
+              />
+            ))}
+          </SortableContext>
+        )}
 
         {/* Drop insert overlay */}
         {showInsertHint && (
@@ -781,6 +933,48 @@ export default function Canvas() {
   const addNode = useEditorStore((s) => s.addNode);
   const builderConfig = useEditorStore((s) => s.builderConfig);
   const [dragMeta, setDragMeta] = useState<DragMeta | null>(null);
+  const submissions = useEditorStore((s) => s.submissions);
+  const [bindingIssues, setBindingIssues] = useState<Record<string, BindingIssue[]>>({});
+
+  const previewBindingContext = useMemo<BindingContext>(
+    () => ({
+      data: {
+        products: [
+          { name: "Keyboard", price: 99.99 },
+          { name: "Mouse", price: 39.5 },
+        ],
+        submissions,
+      },
+    }),
+    [submissions],
+  );
+
+  const onBindingIssues = useCallback((nodeId: string, issues: BindingIssue[]) => {
+    setBindingIssues((prev) => {
+      const current = prev[nodeId] ?? [];
+      const sameLength = current.length === issues.length;
+      const sameContent =
+        sameLength &&
+        current.every((item, index) =>
+          item.prop === issues[index]?.prop &&
+          item.expression === issues[index]?.expression &&
+          item.message === issues[index]?.message,
+        );
+
+      if (sameContent) return prev;
+
+      const next = { ...prev };
+      if (issues.length) next[nodeId] = issues;
+      else delete next[nodeId];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const allIssues = Object.values(bindingIssues).flat();
+    if (!allIssues.length) return;
+    console.warn("[bindings] Non-blocking binding issues detected", allIssues);
+  }, [bindingIssues]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -951,6 +1145,8 @@ export default function Canvas() {
         id={root.id}
         hoveredDropId={hoveredDropId}
         dragMeta={dragMeta}
+        bindingContext={previewBindingContext}
+        onBindingIssues={onBindingIssues}
       />
     </div>
   );
@@ -966,6 +1162,28 @@ export default function Canvas() {
         }}
       >
         {canvasFrame}
+        {Object.values(bindingIssues).flat().length > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              background: "#fff7ed",
+              border: "1px solid #fdba74",
+              color: "#9a3412",
+              borderRadius: 8,
+              padding: 12,
+              fontSize: 12,
+            }}
+          >
+            <strong>Binding debug</strong>
+            {Object.values(bindingIssues)
+              .flat()
+              .map((issue, index) => (
+                <div key={`${issue.nodeId}-${issue.prop}-${index}`}>
+                  node {issue.nodeId} · {issue.prop}: {issue.message}
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     );
   }
