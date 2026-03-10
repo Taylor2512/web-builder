@@ -29,6 +29,10 @@ const normalizeProject = (input: EditorProject): EditorProject => {
     flows: input.flows ?? fallbackTemplate.flows,
     site: input.site ?? fallbackTemplate.site,
     rootId: input.rootId ?? fallbackTemplate.rootId,
+    ui: {
+      ...fallbackTemplate.ui,
+      ...input.ui,
+    },
   }
 }
 

@@ -61,6 +61,11 @@ export type UIActions = {
   selectNode: (id: NodeId | null) => void
   setMode: (mode: EditorMode) => void
   setBreakpoint: (breakpoint: Breakpoint) => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  togglePanels: () => void
+  setLeftPanelWidth: (width: number) => void
+  setRightPanelWidth: (width: number) => void
 }
 
 export type EditorStore = EditorProject & {
