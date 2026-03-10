@@ -11,7 +11,14 @@ import type {
   StyleMap,
 } from '../types/schema'
 
-export type SubmissionMap = Record<string, unknown[]>
+export type SubmissionEntry = {
+  pageId: string
+  formId: string
+  timestamp: string
+  payload: unknown
+}
+
+export type SubmissionMap = Record<string, SubmissionEntry[]>
 
 export type SiteActions = {
   addPage: (name: string, path: string) => void
