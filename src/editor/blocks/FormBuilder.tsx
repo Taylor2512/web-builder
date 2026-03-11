@@ -11,7 +11,46 @@ import SiteDesignPanel from '../panels/SiteDesignPanel'
 import { loadRemoteProject, saveRemoteProject } from '../api/jsonServer'
 import { projectSnapshot } from '../state/useEditorStore'
 
-const BP_ICONS: Record<string, string> = { desktop: '🖥', tablet: '⬜', mobile: '📱' }
+const BP_ICONS: Record<string, string> = { desktop: 'D', tablet: 'T', mobile: 'M' }
+
+const WIX_ADD_CATEGORIES = ['Textos', 'Imágenes', 'Botones', 'Franjas', 'Decorativo', 'Cuadro', 'Galerías', 'Menú y ancla', 'Contacto y formularios', 'Video y música', 'Interactivo', 'Listas', 'Código incrustado', 'Redes sociales', 'Pagos', 'CMS'] as const
+
+const WIX_ADD_ITEMS: Record<(typeof WIX_ADD_CATEGORIES)[number], string[]> = {
+  Textos: ['Título temático', 'Párrafo', 'Texto contraíble', 'Marquesina de texto'],
+  Imágenes: ['Imagen simple', 'Imagen con marco', 'Collage', 'Banner de imagen'],
+  Botones: ['Botón primario', 'Botón con icono', 'Botón secundario', 'Botón outline'],
+  Franjas: ['Hero de portada', 'Franja de servicios', 'Franja de CTA', 'Franja de contacto'],
+  Decorativo: ['Separador decorativo', 'Forma orgánica', 'Etiqueta', 'Icono destacado'],
+  Cuadro: ['Caja de contenido', 'Tarjeta de equipo', 'Tarjeta de precio', 'Caja transparente'],
+  'Galerías': ['Galería masonry', 'Galería slider', 'Galería carrusel', 'Lightbox'],
+  'Menú y ancla': ['Menú horizontal', 'Menú hamburguesa', 'Ancla de sección', 'Navegación lateral'],
+  'Contacto y formularios': ['Formulario contacto', 'Newsletter', 'Formulario multi-step', 'WhatsApp rápido'],
+  'Video y música': ['Video embebido', 'Video hero', 'Audio player', 'Playlist'],
+  Interactivo: ['Accordion', 'Tabs', 'Tooltip', 'Contador animado'],
+  Listas: ['Lista de features', 'Lista de FAQ', 'Lista de tarjetas', 'Repeater dinámico'],
+  'Código incrustado': ['HTML embebido', 'Widget JS', 'iframe externo', 'Snippet personalizado'],
+  'Redes sociales': ['Iconos sociales', 'Feed Instagram', 'Botón compartir', 'Botón seguir'],
+  Pagos: ['Botón comprar', 'Plan de precios', 'Checkout rápido', 'Donación'],
+  CMS: ['Lista CMS', 'Detalle CMS', 'Filtro CMS', 'Búsqueda CMS'],
+}
+
+
+type TipEntry = { title: string; desc: string; cta: string; group: 'Acciones del sitio' | 'Herramientas y opciones' | 'Panel de control' }
+
+const IN_APP_TIPS: TipEntry[] = [
+  { title: 'Ahorra tiempo con automatizaciones', desc: 'Configura flujos automáticos para emails, seguimiento y tareas.', cta: 'Crear automatización', group: 'Acciones del sitio' },
+  { title: 'Convierte visitantes en suscriptores', desc: 'Agrega formularios personalizados y conecta campañas de email.', cta: 'Agregar formulario', group: 'Acciones del sitio' },
+  { title: 'Vende con Facebook e Instagram', desc: 'Encuentra compradores idóneos con anuncios de Meta desde Wix.', cta: 'Crear un anuncio', group: 'Acciones del sitio' },
+  { title: 'Haz crecer tu audiencia con redes sociales', desc: 'Crea y comparte entradas llamativas para atraer más visitas.', cta: 'Crear entrada social', group: 'Acciones del sitio' },
+  { title: 'Aparece en Google', desc: 'Obtén un plan SEO para mejorar visibilidad y posicionamiento.', cta: 'Comienza ahora', group: 'Herramientas y opciones' },
+  { title: 'Prepárate para chatear con tus visitantes', desc: 'Define horarios de chat y no pierdas potenciales clientes.', cta: 'Ir a ajustes', group: 'Herramientas y opciones' },
+  { title: 'Promociona tus productos con un vídeo', desc: 'Crea un video promocional para aumentar conversiones.', cta: 'Crear un video', group: 'Herramientas y opciones' },
+  { title: 'Importa traducciones del sitio', desc: 'Ahorra tiempo importando traducciones en CSV para Wix Multilingual.', cta: 'Importar traducciones', group: 'Herramientas y opciones' },
+  { title: 'Formularios y envíos', desc: 'Crea formularios profesionales y gestiona envíos desde un solo panel.', cta: 'Abrir', group: 'Panel de control' },
+  { title: 'Ajustes de bandeja de entrada', desc: 'Administra notificaciones y preferencias del inbox y chat.', cta: 'Abrir', group: 'Panel de control' },
+  { title: 'Cobrar pagos en persona', desc: 'Activa POS de Wix para pagos locales y en tienda.', cta: 'Leer más', group: 'Panel de control' },
+  { title: 'Vender en canales externos', desc: 'Publica en Amazon, eBay y más canales desde tu panel.', cta: 'Comenzar', group: 'Panel de control' },
+]
 
 export default function FormBuilder() {
   const mode = useEditorStore((s) => s.mode)
@@ -54,7 +93,17 @@ export default function FormBuilder() {
   const [workspace, setWorkspace] = useState<'pages' | 'flows'>('pages')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const [editingName, setEditingName] = useState(false)
+  const [leftPanelPinned, setLeftPanelPinned] = useState(false)
+  const [rightPanelPinned, setRightPanelPinned] = useState(false)
+  const [leftPanelHover, setLeftPanelHover] = useState(false)
+  const [rightPanelHover, setRightPanelHover] = useState(false)
+  const [addPanelOpen, setAddPanelOpen] = useState(false)
+  const [addCategory, setAddCategory] = useState<(typeof WIX_ADD_CATEGORIES)[number]>('Textos')
+  const [pagesMenuOpen, setPagesMenuOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const focusRestoreRef = useRef({ activeLeftPanel: ui.activeLeftPanel, rightPanelOpen: ui.rightPanelOpen })
+  const pagesMenuRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<null | { side: 'left' | 'right'; startX: number; startWidth: number }>(null)
 
   useEffect(() => {
@@ -177,6 +226,26 @@ export default function FormBuilder() {
     }
   }, [setLeftPanelWidth, setRightPanelWidth])
 
+  useEffect(() => {
+    const onGlobalMouseDown = (event: MouseEvent) => {
+      if (pagesMenuRef.current && !pagesMenuRef.current.contains(event.target as Node)) {
+        setPagesMenuOpen(false)
+      }
+    }
+    const onGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setPagesMenuOpen(false)
+      setSearchOpen(false)
+      setAddPanelOpen(false)
+    }
+    window.addEventListener('mousedown', onGlobalMouseDown)
+    window.addEventListener('keydown', onGlobalKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', onGlobalMouseDown)
+      window.removeEventListener('keydown', onGlobalKeyDown)
+    }
+  }, [])
+
   // Auto-open Inspector when a node gets selected
   useEffect(() => {
     if (selectedNodeId && !ui.rightPanelOpen) {
@@ -205,27 +274,32 @@ export default function FormBuilder() {
 
   const focusModeActive = workspace === 'pages' && ui.focusMode
   const activeLeftPanel = ui.activeLeftPanel ?? null
+  const leftPanelVisible = Boolean(activeLeftPanel) && (leftPanelPinned || leftPanelHover)
+  const rightPanelVisible = ui.rightPanelOpen && (rightPanelPinned || rightPanelHover)
+
+  const filteredTips = IN_APP_TIPS.filter((tip) => (`${tip.title} ${tip.desc} ${tip.group}`).toLowerCase().includes(searchQuery.trim().toLowerCase()))
 
   // Helper: toggle a specific left panel (same panel click = close)
   const togglePanel = (panel: 'blocks' | 'layers' | 'pages' | 'design') => {
+    setAddPanelOpen(false)
     setActiveLeftPanel(activeLeftPanel === panel ? null : panel)
   }
 
   // ── Sidebar icon button
   const SidebarBtn = ({
-    id, icon, label,
+    icon, label, onClick, isActive,
   }: {
-    id: 'blocks' | 'layers' | 'pages' | 'design'
     icon: string
     label: string
+    onClick: () => void
+    isActive?: boolean
   }) => {
-    const isActive = activeLeftPanel === id
     const [hov, setHov] = useState(false)
     return (
       <div style={{ position: 'relative' }}>
         <button
           type='button'
-          onClick={() => togglePanel(id)}
+          onClick={onClick}
           onMouseEnter={() => setHov(true)}
           onMouseLeave={() => setHov(false)}
           title={label}
@@ -244,7 +318,6 @@ export default function FormBuilder() {
           <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
           <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1 }}>{label}</span>
         </button>
-        {/* Tooltip */}
         {hov && !isActive && (
           <div style={{
             position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
@@ -268,10 +341,10 @@ export default function FormBuilder() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 8,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, #116dff, #1d4ed8)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, flexShrink: 0,
-          }}>✦</div>
+            fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
+          }}>WB</div>
 
           {editingName ? (
             <input
@@ -325,28 +398,68 @@ export default function FormBuilder() {
                 textTransform: 'capitalize',
               }}
             >
-              {ws === 'pages' ? '⬜ Pages' : '⟶ Flows'}
+              {ws === 'pages' ? 'Páginas' : 'Flujos'}
             </button>
           ))}
 
           {workspace === 'pages' && !focusModeActive && (
             <>
               <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-              {/* Page selector */}
-              <select
-                value={activePageId}
-                onChange={(e) => selectPage(e.target.value)}
-                style={{
-                  padding: '5px 28px 5px 10px', borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-2)', background: 'rgba(0,0,0,0.3)',
-                  color: 'var(--text)', fontSize: 12, cursor: 'pointer', outline: 'none',
-                  appearance: 'none',
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b949e'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
-                }}
-              >
-                {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              {/* Page selector (Wix-like menu) */}
+              <div ref={pagesMenuRef} style={{ position: 'relative' }}>
+                <button
+                  type='button'
+                  onClick={() => setPagesMenuOpen((prev) => !prev)}
+                  style={{
+                    padding: '5px 10px', borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-2)', background: 'var(--panel)',
+                    color: 'var(--text)', fontSize: 12, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <span>{pages.find((p) => p.id === activePageId)?.name ?? 'Inicio'}</span>
+                  <span style={{ color: 'var(--muted)' }}>▾</span>
+                </button>
+                {pagesMenuOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260,
+                    background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 10,
+                    boxShadow: 'var(--shadow-lg)', zIndex: 60, overflow: 'hidden',
+                  }}>
+                    <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid var(--border)' }}>Páginas del sitio</div>
+                    <div style={{ maxHeight: 220, overflow: 'auto' }}>
+                      {pages.map((p) => (
+                        <button
+                          key={p.id}
+                          type='button'
+                          onClick={() => { selectPage(p.id); setPagesMenuOpen(false) }}
+                          style={{
+                            width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                            padding: '10px 14px', fontSize: 14,
+                            background: p.id === activePageId ? 'var(--primary)' : 'transparent',
+                            color: p.id === activePageId ? '#fff' : 'var(--text)',
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border)' }}>
+                      <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid var(--border)' }}>Ventanas emergentes</div>
+                      <button
+                        type='button'
+                        onClick={() => setPagesMenuOpen(false)}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 14, cursor: 'pointer', padding: '10px 14px' }}
+                      >
+                        Suscríbete
+                      </button>
+                    </div>
+                    <div style={{ padding: 10, borderTop: '1px solid var(--border)' }}>
+                      <button type='button' onClick={() => { setActiveLeftPanel('pages'); setPagesMenuOpen(false) }} style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--primary)', fontSize: 14, cursor: 'pointer' }}>Administrar páginas</button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <GhostButton onClick={() => addPage(`Page ${pages.length + 1}`, `/page-${pages.length + 1}`)} style={{ fontSize: 11 }}>+ Page</GhostButton>
               {activePage && pages.length > 1 && (
                 <GhostButton onClick={() => removePage(activePage.id)} style={{ fontSize: 11, color: 'var(--danger)' }}>✕</GhostButton>
@@ -360,9 +473,9 @@ export default function FormBuilder() {
           {/* Breakpoints */}
           {workspace === 'pages' && (
             <>
-              <GhostButton onClick={undo} disabled={historyPastSize < 2} title='Deshacer' style={{ fontSize: 11 }}>↶ Undo</GhostButton>
-              <GhostButton onClick={redo} disabled={historyFutureSize < 1} title='Rehacer' style={{ fontSize: 11 }}>↷ Redo</GhostButton>
-              <GhostButton onClick={() => createPublishSnapshot()} title='Guardar snapshot de publicación' style={{ fontSize: 11 }}>📸 Snapshot</GhostButton>
+              <GhostButton onClick={undo} disabled={historyPastSize < 2} title='Deshacer' style={{ fontSize: 11 }}>Deshacer</GhostButton>
+              <GhostButton onClick={redo} disabled={historyFutureSize < 1} title='Rehacer' style={{ fontSize: 11 }}>Rehacer</GhostButton>
+              <GhostButton onClick={() => createPublishSnapshot()} title='Guardar snapshot de publicación' style={{ fontSize: 11 }}>Snapshot</GhostButton>
               <select
                 defaultValue=''
                 onChange={(e) => { if (e.target.value) restorePublishSnapshot(e.target.value); e.target.value = '' }}
@@ -401,6 +514,8 @@ export default function FormBuilder() {
             </div>
           )}
 
+          <GhostButton onClick={() => setSearchOpen(true)} title='Buscar en editor' style={{ fontSize: 11 }}>Buscar</GhostButton>
+
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
           {workspace === 'pages' && (
@@ -415,15 +530,15 @@ export default function FormBuilder() {
               onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}
               style={{ background: mode === 'preview' ? '#22c55e' : undefined, fontSize: 11 }}
             >
-              {mode === 'edit' ? '▶ Preview' : '✎ Edit'}
+              {mode === 'edit' ? 'Vista previa' : 'Editar'}
             </PrimaryButton>
           )}
 
           {/* Import / Export */}
           {!focusModeActive && (
             <>
-              <GhostButton onClick={handleExport} title='Export design as JSON' style={{ fontSize: 11 }}>↑ Export</GhostButton>
-              <GhostButton onClick={() => fileRef.current?.click()} title='Import JSON' style={{ fontSize: 11 }}>↓ Import</GhostButton>
+              <GhostButton onClick={handleExport} title='Exportar diseño a JSON' style={{ fontSize: 11 }}>Exportar</GhostButton>
+              <GhostButton onClick={() => fileRef.current?.click()} title='Importar JSON' style={{ fontSize: 11 }}>Importar</GhostButton>
               <button
                 type='button'
                 onClick={() => { if (confirm('Reset all content? This cannot be undone.')) reset() }}
@@ -451,10 +566,10 @@ export default function FormBuilder() {
             <button
               type='button'
               title='Agregar bloque'
-              onClick={() => togglePanel('blocks')}
+              onClick={() => { setAddPanelOpen((prev) => !prev); setActiveLeftPanel(null) }}
               style={{
                 width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 6,
-                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                background: 'linear-gradient(135deg, var(--primary), #3b82f6)',
                 border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20, fontWeight: 700,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 2px 12px var(--primary-glow)',
@@ -463,15 +578,36 @@ export default function FormBuilder() {
             >+</button>
             {/* Divider */}
             <div style={{ width: 28, height: 1, background: 'var(--border)', marginBottom: 4 }} />
-            <SidebarBtn id='blocks' icon='⊞' label='Blocks' />
-            <SidebarBtn id='layers' icon='≡' label='Layers' />
-            <SidebarBtn id='pages' icon='⬜' label='Pages' />
-            <SidebarBtn id='design' icon='✦' label='Design' />
+            <SidebarBtn icon='⊞' label='Elementos' onClick={() => { setAddPanelOpen(true); setActiveLeftPanel('blocks') }} isActive={activeLeftPanel === 'blocks'} />
+            <SidebarBtn icon='▤' label='Secciones' onClick={() => togglePanel('layers')} isActive={activeLeftPanel === 'layers'} />
+            <SidebarBtn icon='📄' label='Páginas' onClick={() => togglePanel('pages')} isActive={activeLeftPanel === 'pages'} />
+            <SidebarBtn icon='✦' label='Diseño' onClick={() => togglePanel('design')} isActive={activeLeftPanel === 'design'} />
+            <SidebarBtn icon='⬚' label='Apps' onClick={() => { setAddPanelOpen(true); setAddCategory('CMS') }} />
+            <SidebarBtn icon='⚙' label='Negocio' onClick={() => { setAddPanelOpen(true); setAddCategory('Pagos') }} />
+            <SidebarBtn icon='🖼' label='Media' onClick={() => { setAddPanelOpen(true); setAddCategory('Imágenes') }} />
+            <SidebarBtn icon='▦' label='CMS' onClick={() => { setAddPanelOpen(true); setAddCategory('CMS') }} />
+            <div style={{ flex: 1 }} />
+            <button
+              type='button'
+              title={leftPanelPinned ? 'Cambiar a apertura por hover' : 'Fijar panel izquierdo'}
+              onClick={() => setLeftPanelPinned((prev) => !prev)}
+              style={{
+                width: 36,
+                height: 28,
+                borderRadius: 999,
+                border: '1px solid var(--border-2)',
+                background: leftPanelPinned ? 'var(--surface-hover)' : 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              {leftPanelPinned ? 'PIN' : 'HOV'}
+            </button>
           </nav>
         )}
 
         {/* ── Canvas + floating panels wrapper ── */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'linear-gradient(180deg, #f5f8fd 0%, #eef2f7 100%)' }}>
 
           {/* Canvas — always full width */}
           {workspace === 'pages'
@@ -479,14 +615,101 @@ export default function FormBuilder() {
             : <section style={{ width: '100%', height: '100%', overflow: 'auto' }}><FlowStudio /></section>
           }
 
+
+          {/* ── Wix-like Add Elements Drawer ── */}
+          {workspace === 'pages' && !focusModeActive && addPanelOpen && (
+            <section
+              style={{
+                position: 'absolute',
+                left: 72,
+                top: 16,
+                width: 'min(980px, calc(100% - 96px))',
+                height: 'min(760px, calc(100% - 32px))',
+                background: 'var(--panel)',
+                border: '1px solid var(--border)',
+                borderRadius: 14,
+                boxShadow: 'var(--shadow-lg)',
+                zIndex: 24,
+                overflow: 'hidden',
+                display: 'grid',
+                gridTemplateColumns: '320px 280px 1fr',
+              }}
+            >
+              <div style={{ borderRight: '1px solid var(--border)', padding: 16, overflow: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 34, fontWeight: 700, color: 'var(--text)' }}>Agregar elementos</h3>
+                  <button type='button' onClick={() => setAddPanelOpen(false)} style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: 26, cursor: 'pointer' }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gap: 4 }}>
+                  {WIX_ADD_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      type='button'
+                      onClick={() => setAddCategory(cat)}
+                      style={{
+                        textAlign: 'left',
+                        border: 'none',
+                        borderRadius: 999,
+                        padding: '9px 12px',
+                        background: addCategory === cat ? 'var(--primary-dim)' : 'transparent',
+                        color: addCategory === cat ? 'var(--primary)' : 'var(--text)',
+                        fontSize: 15,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ borderRight: '1px solid var(--border)', padding: 16, overflow: 'auto' }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: 12 }}>Plantillas {addCategory}</div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {(WIX_ADD_ITEMS[addCategory] ?? []).map((item) => (
+                    <button
+                      key={item}
+                      type='button'
+                      onClick={() => { setActiveLeftPanel('blocks'); setAddPanelOpen(false) }}
+                      style={{
+                        textAlign: 'left',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: 18, overflow: 'auto' }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: 12 }}>Vista previa</div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 20, background: 'linear-gradient(180deg, #fff, #f8fbff)', minHeight: 240 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{addCategory}</div>
+                  <p style={{ marginTop: 0, color: 'var(--text-secondary)' }}>Selecciona una plantilla para insertarla rápidamente en la página y luego ajustarla desde el inspector.</p>
+                  <PrimaryButton onClick={() => { setActiveLeftPanel('blocks'); setAddPanelOpen(false) }}>
+                    Abrir biblioteca completa
+                  </PrimaryButton>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* ── Floating Left Panel ── */}
           {workspace === 'pages' && !focusModeActive && (
             <aside
               className='shell-float-panel left'
+              onMouseEnter={() => setLeftPanelHover(true)}
+              onMouseLeave={() => setLeftPanelHover(false)}
               style={{
                 width: ui.leftPanelWidth,
-                transform: activeLeftPanel ? 'translateX(0)' : 'translateX(-100%)',
-                boxShadow: activeLeftPanel ? '4px 0 24px rgba(0,0,0,0.45)' : 'none',
+                transform: activeLeftPanel ? (leftPanelVisible ? 'translateX(0)' : 'translateX(calc(-100% + 14px))') : 'translateX(-100%)',
+                boxShadow: leftPanelVisible ? '6px 0 30px rgba(0,0,0,0.4)' : 'none',
                 pointerEvents: activeLeftPanel ? 'auto' : 'none',
               }}
             >
@@ -495,6 +718,7 @@ export default function FormBuilder() {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <ShellIconButton title='Reducir ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth - 20)}>−</ShellIconButton>
                   <ShellIconButton title='Ampliar ancho' onClick={() => setLeftPanelWidth(ui.leftPanelWidth + 20)}>+</ShellIconButton>
+                  <ShellIconButton title={leftPanelPinned ? 'Panel por hover' : 'Fijar panel'} onClick={() => setLeftPanelPinned((prev) => !prev)}>{leftPanelPinned ? 'P' : 'H'}</ShellIconButton>
                   <ShellIconButton size='md' onClick={() => setActiveLeftPanel(null)} title='Cerrar panel'>✕</ShellIconButton>
                 </div>
               </ShellPanelHeader>
@@ -519,10 +743,12 @@ export default function FormBuilder() {
           {workspace === 'pages' && !focusModeActive && (
             <aside
               className='shell-float-panel right'
+              onMouseEnter={() => setRightPanelHover(true)}
+              onMouseLeave={() => setRightPanelHover(false)}
               style={{
                 width: ui.rightPanelWidth,
-                transform: ui.rightPanelOpen ? 'translateX(0)' : 'translateX(100%)',
-                boxShadow: ui.rightPanelOpen ? '-4px 0 24px rgba(0,0,0,0.45)' : 'none',
+                transform: ui.rightPanelOpen ? (rightPanelVisible ? 'translateX(0)' : 'translateX(calc(100% - 14px))') : 'translateX(100%)',
+                boxShadow: rightPanelVisible ? '-6px 0 30px rgba(0,0,0,0.4)' : 'none',
                 pointerEvents: ui.rightPanelOpen ? 'auto' : 'none',
               }}
             >
@@ -531,6 +757,7 @@ export default function FormBuilder() {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <ShellIconButton title='Reducir ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth - 20)}>−</ShellIconButton>
                   <ShellIconButton title='Ampliar ancho' onClick={() => setRightPanelWidth(ui.rightPanelWidth + 20)}>+</ShellIconButton>
+                  <ShellIconButton title={rightPanelPinned ? 'Inspector por hover' : 'Fijar inspector'} onClick={() => setRightPanelPinned((prev) => !prev)}>{rightPanelPinned ? 'P' : 'H'}</ShellIconButton>
                   <ShellIconButton size='md' onClick={toggleRightPanel} title='Cerrar Inspector'>✕</ShellIconButton>
                 </div>
               </ShellPanelHeader>
@@ -554,7 +781,7 @@ export default function FormBuilder() {
               title={ui.rightPanelOpen ? 'Cerrar Inspector' : 'Abrir Inspector'}
               style={{
                 position: 'absolute',
-                right: ui.rightPanelOpen ? ui.rightPanelWidth : 0,
+                right: ui.rightPanelOpen ? (rightPanelVisible ? ui.rightPanelWidth : 14) : 0,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 25,
@@ -563,7 +790,7 @@ export default function FormBuilder() {
                 border: '1px solid var(--border)',
                 borderRight: ui.rightPanelOpen ? '1px solid var(--border)' : 'none',
                 borderRadius: ui.rightPanelOpen ? '6px 0 0 6px' : '6px 0 0 6px',
-                background: 'var(--panel)',
+                background: 'var(--panel-alt)',
                 color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 fontSize: 10,
@@ -578,6 +805,47 @@ export default function FormBuilder() {
 
         </div>{/* end canvas wrapper */}
       </div>
+
+
+      {searchOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(3, 9, 23, 0.28)', zIndex: 80, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: 88 }} onClick={() => setSearchOpen(false)}>
+          <div style={{ width: 'min(920px, 92vw)', maxHeight: '78vh', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow-lg)', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder='Buscar herramientas, acciones, formularios, SEO…'
+                style={{ width: '100%', border: '1px solid var(--border-2)', borderRadius: 10, padding: '10px 12px', fontSize: 16, outline: 'none', background: 'var(--panel)', color: 'var(--text)' }}
+              />
+            </div>
+            <div style={{ maxHeight: '64vh', overflow: 'auto' }}>
+              {(['Acciones del sitio', 'Herramientas y opciones', 'Panel de control'] as const).map((group) => {
+                const items = filteredTips.filter((tip) => tip.group === group)
+                if (!items.length) return null
+                return (
+                  <div key={group}>
+                    <div style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>{group}</div>
+                    {items.map((tip) => (
+                      <button key={`${group}-${tip.title}`} type='button' onClick={() => setSearchOpen(false)} style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', borderBottom: '1px solid var(--border)', padding: '12px 16px', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary-dim)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>⚙</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 18, color: 'var(--text)', marginBottom: 4 }}>{tip.title}</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{tip.desc}</div>
+                            <span style={{ fontSize: 12, color: '#fff', fontWeight: 700, background: 'var(--primary)', borderRadius: 999, padding: '4px 10px', display: 'inline-flex' }}>{tip.cta}</span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+              {!filteredTips.length && <div style={{ padding: 20, color: 'var(--muted)' }}>No se encontraron resultados para “{searchQuery}”.</div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {focusModeActive && (
         <button
