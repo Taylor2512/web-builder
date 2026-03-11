@@ -15,6 +15,22 @@ import RepeaterEditor from './editors/RepeaterEditor'
 const fieldTypes: FormFieldType[] = ['text', 'textarea', 'email', 'number', 'password', 'tel', 'url', 'date', 'time', 'datetime-local', 'select', 'radio', 'checkbox', 'switch', 'range', 'file', 'color']
 const TYPE_ACCENT: Record<string, string> = { page: '#6366f1', section: '#8b5cf6', container: '#06b6d4', grid: '#10b981', text: '#f59e0b', image: '#ec4899', button: '#3b82f6', form: '#f97316', spacer: '#94a3b8', divider: '#94a3b8' }
 
+/* ── Eye SVG Icons ── */
+const EyeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
+const EyeOffIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+)
+
 export default function Inspector() {
   const nodeId = useEditorStore((s) => s.selectedNodeId)
   const node = useEditorStore((s) => (nodeId ? s.nodesById[nodeId] : null))
@@ -98,10 +114,24 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
           <button
             type='button'
             onClick={() => toggleNodeVisibility(node.id)}
-            style={{ background: node.isHidden ? 'rgba(245,158,11,0.1)' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, color: node.isHidden ? 'var(--warning)' : 'var(--text-secondary)', cursor: 'pointer', padding: '4px 7px', fontSize: 11 }}
-            title={node.isHidden ? 'Mostrar componente' : 'Ocultar componente'}
+            title={node.isHidden ? 'Show element' : 'Hide element'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: node.isHidden ? 'rgba(245,158,11,0.12)' : 'var(--surface)',
+              border: `1px solid ${node.isHidden ? 'rgba(245,158,11,0.5)' : 'var(--border)'}`,
+              borderRadius: 6,
+              color: node.isHidden ? 'var(--warning)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: node.isHidden ? 600 : 400,
+              transition: 'background 150ms, border-color 150ms, color 150ms',
+            }}
           >
-            {node.isHidden ? '👁' : '🚫'}
+            {node.isHidden ? <EyeOffIcon /> : <EyeIcon />}
+            <span style={{ fontSize: 10 }}>{node.isHidden ? 'Hidden' : 'Visible'}</span>
           </button>
         )}
       </div>
@@ -110,10 +140,13 @@ function InspectorPanel({ node }: { node: BuilderNode }) {
 
     <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'grid', gap: 10, alignContent: 'start' }}>
       {node.isHidden && (
-        <Card style={{ border: '1px solid rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.1)' }}>
+        <Card style={{ border: '1px solid rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--warning)' }}>Este componente está oculto en el lienzo.</span>
-            <GhostButton onClick={() => showNode(node.id)}>Mostrar componente</GhostButton>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <EyeOffIcon />
+              <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}>This element is hidden on the canvas.</span>
+            </div>
+            <GhostButton onClick={() => showNode(node.id)}>Show element</GhostButton>
           </div>
         </Card>
       )}

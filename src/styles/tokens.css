@@ -49,6 +49,8 @@
   --shadow:    0 8px 20px rgba(15, 23, 42, 0.12);
   --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.16);
   --shadow-glow: 0 0 0 3px var(--primary-glow);
+  /* Panel shadow for left/right panels */
+  --panel-shadow: 0 2px 12px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
 
   /* ── Typography ── */
   --font:      'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -57,6 +59,15 @@
   /* ── Motion ── */
   --transition: 150ms ease;
   --transition-slow: 250ms ease;
+
+  /* ── Hidden element ── */
+  --hidden-stripe: repeating-linear-gradient(
+    45deg,
+    rgba(245, 158, 11, 0.06) 0px,
+    rgba(245, 158, 11, 0.06) 6px,
+    transparent 6px,
+    transparent 12px
+  );
 }
 
 body {
@@ -75,3 +86,16 @@ body {
 
 /* transitions on interactive elements */
 button, input, select, textarea { transition: border-color var(--transition), box-shadow var(--transition), background var(--transition); }
+
+/* ── Node toolbar hover animation ── */
+@keyframes toolbarFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Hidden element pulse (subtle) ── */
+@keyframes hiddenPulse {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.55; }
+}
+

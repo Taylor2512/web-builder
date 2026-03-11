@@ -11,6 +11,22 @@ type LayerVisibilityFilter = 'all' | 'visible' | 'hidden'
 
 type LayerNode = { type: string; children: string[]; isHidden?: boolean }
 
+/* ── Eye SVG Icons for Layers Panel ── */
+const EyeIcon = ({ size = 13 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
+const EyeOffIcon = ({ size = 13 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+)
+
 const CATEGORY_LABELS: Record<CategoryKey, string> = {
   estructura: 'Layout',
   contenido: 'Content',
@@ -317,75 +333,115 @@ function LayerItem({ id, depth, nodesById, selectedId, onSelect, onToggleVisibil
   }) {
   const node = nodesById[id]
   const [open, setOpen] = useState(true)
+  const [rowHovered, setRowHovered] = useState(false)
   if (!node || !visibleNodeIds.has(id)) return null
   const isActive = id === selectedId
   const isContainer = containerTypes.includes(node.type as NodeType)
   const isHidden = Boolean(node.isHidden)
+  // Show eye icon on row hover OR when already hidden
+  const showEye = rowHovered || isHidden
 
   return (
     <div>
       <div
         style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingLeft: depth * 14 + 4, paddingRight: 4, paddingTop: 4, paddingBottom: 4,
+          display: 'flex', alignItems: 'center', gap: 4,
+          paddingLeft: depth * 14 + 4, paddingRight: 6, paddingTop: 4, paddingBottom: 4,
           borderRadius: 'var(--radius-sm)',
-          background: isActive ? 'var(--primary-dim)' : 'transparent',
+          background: isActive ? 'var(--primary-dim)' : rowHovered ? 'var(--surface-hover)' : 'transparent',
           cursor: 'pointer',
           marginBottom: 1,
-          opacity: isHidden ? 0.65 : 1,
+          opacity: isHidden ? 0.6 : 1,
+          transition: 'background 120ms, opacity 200ms',
         }}
         onClick={() => onSelect(id)}
+        onMouseEnter={() => setRowHovered(true)}
+        onMouseLeave={() => setRowHovered(false)}
       >
+        {/* Expand/collapse toggle */}
         {isContainer && node.children.length > 0 ? (
           <span
             onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
-            style={{ color: 'var(--muted)', fontSize: 10, width: 12, flexShrink: 0, textAlign: 'center' }}
+            style={{
+              color: 'var(--muted)', fontSize: 9, width: 12, flexShrink: 0,
+              textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >
             {open ? '▾' : '▸'}
           </span>
         ) : (
           <span style={{ width: 12, flexShrink: 0 }} />
         )}
-        <span style={{ fontSize: 11, color: isActive ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: isActive ? 600 : 400, fontFamily: 'var(--font-mono)' }}>
+
+        {/* Node type label */}
+        <span style={{
+          fontSize: 11,
+          color: isActive ? 'var(--primary)' : isHidden ? 'var(--muted)' : 'var(--text-secondary)',
+          fontWeight: isActive ? 600 : 400,
+          fontFamily: 'var(--font-mono)',
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          textDecoration: isHidden ? 'line-through' : 'none',
+          textDecorationColor: 'var(--warning)',
+        }}>
           {highlightLabel(node.type, layerSearch)}
         </span>
-        {isHidden && (
+
+        {/* Hidden badge */}
+        {isHidden && !rowHovered && (
           <span
-            title='Componente oculto'
+            title='Element is hidden'
             style={{
-              fontSize: 10,
+              fontSize: 9,
               color: 'var(--warning)',
-              border: '1px solid rgba(245,158,11,0.45)',
-              background: 'rgba(245,158,11,0.1)',
+              border: '1px solid rgba(245,158,11,0.4)',
+              background: 'rgba(245,158,11,0.08)',
               borderRadius: 999,
-              padding: '1px 6px',
-              lineHeight: 1.4,
+              padding: '1px 5px',
+              lineHeight: 1.5,
+              flexShrink: 0,
             }}
           >
-            ◌ oculto
+            hidden
           </span>
         )}
-        <button
-          type='button'
-          title={node.isHidden ? 'Show node' : 'Hide node'}
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleVisibility(id)
-          }}
-          style={{
-            marginLeft: 'auto',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            fontSize: 12,
-            padding: 0,
-            lineHeight: 1,
-            opacity: isHidden ? 0.8 : 1,
-          }}
-        >
-          {node.isHidden ? '🚫' : '👁'}
-        </button>
-        <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>{highlightLabel(id.slice(-4), layerSearch)}</span>
+
+        {/* Eye toggle button — visible on hover or when hidden */}
+        {showEye && (
+          <button
+            type='button'
+            title={isHidden ? 'Show element' : 'Hide element'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleVisibility(id)
+            }}
+            style={{
+              marginLeft: isHidden && !rowHovered ? 0 : 'auto',
+              border: 'none',
+              background: isHidden ? 'rgba(245,158,11,0.12)' : 'transparent',
+              cursor: 'pointer',
+              padding: '3px',
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 5,
+              color: isHidden ? 'var(--warning)' : 'var(--muted)',
+              flexShrink: 0,
+              transition: 'color 120ms, background 120ms',
+            }}
+          >
+            {isHidden ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        )}
+
+        {/* ID suffix */}
+        <span style={{ fontSize: 9, color: 'var(--border-2)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+          {highlightLabel(id.slice(-4), layerSearch)}
+        </span>
       </div>
       {open && isContainer && node.children.map((childId) => (
         <LayerItem
