@@ -1,0 +1,27 @@
+.wb-search-overlay-scope {
+  --wb-search-spacing-1: 0.25rem;
+  --wb-search-spacing-2: 0.5rem;
+  --wb-search-spacing-3: 0.75rem;
+  --wb-search-spacing-4: 1rem;
+  --wb-search-spacing-5: 1.5rem;
+
+  --wb-search-radius-sm: 0.5rem;
+  --wb-search-radius-md: 0.75rem;
+  --wb-search-radius-pill: 9999px;
+
+  --wb-search-elevation-overlay: 0 18px 48px rgba(15, 23, 42, 0.26);
+  --wb-search-elevation-focus: 0 0 0 3px rgba(59, 130, 246, 0.32);
+
+  --wb-search-color-backdrop: rgba(15, 23, 42, 0.5);
+  --wb-search-color-panel-bg: #ffffff;
+  --wb-search-color-panel-border: #d6dce8;
+  --wb-search-color-header-text: #475569;
+  --wb-search-color-item-text: #1e293b;
+  --wb-search-color-item-subtle: #64748b;
+  --wb-search-color-item-bg-hover: #f1f5f9;
+  --wb-search-color-item-bg-focus: #e2e8f0;
+  --wb-search-color-cta-text: #0f172a;
+  --wb-search-color-cta-bg: #f8fafc;
+  --wb-search-color-cta-bg-hover: #eef2ff;
+  --wb-search-color-cta-border: #c7d2fe;
+}
