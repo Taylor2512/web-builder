@@ -1,0 +1,82 @@
+@import './searchOverlay.tokens.css';
+
+.wb-search-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--wb-search-spacing-5);
+  background: var(--wb-search-color-backdrop);
+  z-index: 999;
+}
+
+.wb-search-overlay-panel {
+  width: min(38rem, 100%);
+  margin-top: 10vh;
+  border: 1px solid var(--wb-search-color-panel-border);
+  border-radius: var(--wb-search-radius-md);
+  background: var(--wb-search-color-panel-bg);
+  box-shadow: var(--wb-search-elevation-overlay);
+  overflow: hidden;
+}
+
+.wb-search-overlay-group-header {
+  margin: 0;
+  padding: var(--wb-search-spacing-2) var(--wb-search-spacing-4);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wb-search-color-header-text);
+}
+
+.wb-search-overlay-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wb-search-spacing-3);
+  border: 0;
+  border-radius: var(--wb-search-radius-sm);
+  background: transparent;
+  color: var(--wb-search-color-item-text);
+  text-align: left;
+  padding: var(--wb-search-spacing-3) var(--wb-search-spacing-4);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.wb-search-overlay-item:hover {
+  background: var(--wb-search-color-item-bg-hover);
+}
+
+.wb-search-overlay-item:focus-visible {
+  background: var(--wb-search-color-item-bg-focus);
+  box-shadow: var(--wb-search-elevation-focus);
+  outline: none;
+}
+
+.wb-search-overlay-cta {
+  margin: var(--wb-search-spacing-3) var(--wb-search-spacing-4) var(--wb-search-spacing-4);
+  padding: var(--wb-search-spacing-2) var(--wb-search-spacing-3);
+  border: 1px solid var(--wb-search-color-cta-border);
+  border-radius: var(--wb-search-radius-pill);
+  background: var(--wb-search-color-cta-bg);
+  color: var(--wb-search-color-cta-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.wb-search-overlay-cta:hover {
+  background: var(--wb-search-color-cta-bg-hover);
+}
+
+.wb-search-overlay-cta:focus-visible {
+  box-shadow: var(--wb-search-elevation-focus);
+  outline: none;
+}
+
+.wb-search-overlay-item-hint {
+  color: var(--wb-search-color-item-subtle);
+  font-size: 0.8125rem;
+}
