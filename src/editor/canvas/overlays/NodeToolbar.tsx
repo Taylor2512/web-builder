@@ -156,7 +156,7 @@ export function NodeToolbar({ node, onDelete }: { node: Node; onDelete: () => vo
             letterSpacing: "0.03em",
           }}
         >
-          #{node.id.slice(-5)}
+          #{node.id.slice(-4)}
         </span>
       </div>
 
