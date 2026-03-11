@@ -1,41 +1,41 @@
 :root {
-  /* ── Base backgrounds ── */
-  --bg:         #0d1117;
-  --panel:      #111820;
-  --panel-alt:  #161e2a;
+  /* ── Base backgrounds (Wix-like light shell) ── */
+  --bg:         #eef2f7;
+  --panel:      #ffffff;
+  --panel-alt:  #f7f9fc;
 
   /* ── Surfaces (overlays) ── */
-  --surface:       rgba(255,255,255,0.035);
-  --surface-2:     rgba(255,255,255,0.07);
-  --surface-3:     rgba(255,255,255,0.13);
-  --surface-hover: rgba(255,255,255,0.055);
+  --surface:       #f8fafc;
+  --surface-2:     #eef3fb;
+  --surface-3:     #e4ebf7;
+  --surface-hover: #edf3ff;
 
   /* ── Text ── */
-  --text:           #e6edf3;
-  --text-secondary: #8b949e;
-  --muted:          #5d6b7a;
+  --text:           #1f2937;
+  --text-secondary: #4b5563;
+  --muted:          #6b7280;
 
   /* ── Borders ── */
-  --border:   rgba(255,255,255,0.08);
-  --border-2: rgba(255,255,255,0.14);
+  --border:   #e5eaf2;
+  --border-2: #d7e0ec;
 
-  /* ── Primary (Indigo) ── */
-  --primary:      #6366f1;
-  --primary-dim:  rgba(99,102,241,0.14);
-  --primary-glow: rgba(99,102,241,0.4);
-  --primary-dark: #4f46e5;
+  /* ── Primary ── */
+  --primary:      #116dff;
+  --primary-dim:  rgba(17, 109, 255, 0.12);
+  --primary-glow: rgba(17, 109, 255, 0.28);
+  --primary-dark: #0c59d4;
 
-  /* ── Accent (Cyan) ── */
-  --accent:     #22d3ee;
-  --accent-dim: rgba(34,211,238,0.12);
+  /* ── Accent ── */
+  --accent:     #00b8a9;
+  --accent-dim: rgba(0, 184, 169, 0.12);
 
   /* ── Status ── */
-  --success:     #22c55e;
-  --success-dim: rgba(34,197,94,0.12);
-  --warning:     #f59e0b;
-  --warning-dim: rgba(245,158,11,0.12);
-  --danger:      #f43f5e;
-  --danger-dim:  rgba(244,63,94,0.12);
+  --success:     #16a34a;
+  --success-dim: rgba(22, 163, 74, 0.14);
+  --warning:     #d97706;
+  --warning-dim: rgba(217, 119, 6, 0.14);
+  --danger:      #dc2626;
+  --danger-dim:  rgba(220, 38, 38, 0.13);
 
   /* ── Radii ── */
   --radius-xs: 4px;
@@ -45,9 +45,9 @@
   --radius-xl: 20px;
 
   /* ── Shadows ── */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.45);
-  --shadow:    0 4px 14px rgba(0,0,0,0.52);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,0.65);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow:    0 8px 20px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.16);
   --shadow-glow: 0 0 0 3px var(--primary-glow);
 
   /* ── Typography ── */
@@ -68,10 +68,10 @@ body {
 }
 
 /* scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+::-webkit-scrollbar-thumb { background: #c7d2e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #a9b8cb; }
 
 /* transitions on interactive elements */
 button, input, select, textarea { transition: border-color var(--transition), box-shadow var(--transition), background var(--transition); }
